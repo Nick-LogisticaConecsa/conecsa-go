@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Conecsa Go</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  .tab-on{color:#0B1320;border-color:#F59E0B}
+  .tab-off{color:#6b7280;border-color:transparent}
+  .est-pendiente{background:#fef3c7;color:#92400e}
+  .est-en_curso{background:#dbeafe;color:#1e40af}
+  .est-hecha{background:#d1fae5;color:#065f46}
+</style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen">
+
+<!-- LOGIN -->
+<div id="login" class="min-h-screen flex items-center justify-center p-4">
+  <div class="bg-white p-8 rounded-xl shadow-md w-full max-w-sm">
+    <img src="LogoConecsa.jpg" alt="Conecsa" class="h-24 w-24 object-contain mx-auto mb-4">
+    <h1 class="text-xl font-bold text-center mb-6">Acceso Operativo</h1>
+    <input id="email" type="email" placeholder="Correo electrónico" class="w-full p-3 mb-3 border rounded-lg focus:outline-none focus:border-[#0B1320]">
+    <input id="password" type="password" placeholder="Contraseña" class="w-full p-3 mb-5 border rounded-lg focus:outline-none focus:border-[#0B1320]" onkeydown="if(event.key==='Enter')iniciarSesion()">
+    <button onclick="iniciarSesion()" class="w-full bg-[#0B1320] text-white p-3 rounded-lg font-bold hover:bg-slate-800">Entrar</button>
+    <p id="error-msg" class="text-red-600 text-sm text-center mt-4 hidden"></p>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" class="hidden">
+  <header class="bg-[#0B1320] text-white px-4 py-3 flex justify-between items-center sticky top-0 z-10">
+    <div class="flex items-center gap-3">
+      <img src="LogoConecsa.jpg" alt="" class="h-9 w-9 bg-white rounded-full p-0.5 object-contain">
+      <div class="leading-tight">
+        <div class="font-bold">Conecsa Go</div>
+        <div id="quien" class="text-xs text-slate-300"></div>
+      </div>
+    </div>
+    <button onclick="cerrarSesion()" class="text-sm bg-slate-700 px-3 py-1 rounded hover:bg-slate-600">Salir</button>
+  </header>
+
+  <nav class="bg-white border-b flex max-w-2xl mx-auto sticky top-[60px] z-10 overflow-x-auto text-sm sm:text-base">
+    <button data-tab="formulario" class="tab flex-1 py-3 px-2 font-semibold border-b-4 whitespace-nowrap">Formularios</button>
+    <button data-tab="manual" class="tab flex-1 py-3 px-2 font-semibold border-b-4 whitespace-nowrap">Procesos</button>
+    <button data-tab="avisos" class="tab flex-1 py-3 px-2 font-semibold border-b-4 whitespace-nowrap">Avisos</button>
+    <button data-tab="tareas" class="tab flex-1 py-3 px-2 font-semibold border-b-4 whitespace-nowrap">Tareas <span id="badge" class="hidden ml-1 text-xs bg-amber-500 text-white rounded-full px-1.5"></span></button>
+  </nav>
+
+  <main class="max-w-2xl mx-auto p-4">
+    <!-- Recursos -->
+    <section id="v-recursos">
+      <input id="buscar" oninput="pintarRecursos()" placeholder="Buscar…" class="w-full p-3 mb-4 border rounded-lg bg-white focus:outline-none focus:border-[#0B1320]">
+      <div id="lista-recursos"></div>
+    </section>
+
+    <!-- Avisos -->
+    <section id="v-avisos" class="hidden">
+      <div id="form-aviso" class="hidden bg-blue-50 rounded-xl border border-blue-200 p-4 mb-5">
+        <h3 class="font-bold text-blue-800 mb-2">Publicar nuevo aviso</h3>
+        <textarea id="a-mensaje" rows="2" placeholder="Comunicado..." class="w-full p-2.5 mb-2 border rounded-lg focus:outline-none focus:border-blue-500"></textarea>
+        <input id="a-img" type="url" placeholder="URL de imagen (opcional)" class="w-full p-2.5 mb-3 border rounded-lg focus:outline-none focus:border-blue-500 text-sm">
+        <button onclick="crearAviso()" class="w-full bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg font-bold">Enviar a todos</button>
+      </div>
+      <div id="lista-avisos"></div>
+    </section>
+
+    <!-- Tareas -->
+    <section id="v-tareas" class="hidden">
+      <div class="flex gap-2 mb-4">
+        <button id="sub-mias" onclick="subTareas('mias')" class="sub px-3 py-1.5 rounded-full text-sm font-semibold">Mis tareas</button>
+        <button id="sub-dadas" onclick="subTareas('dadas')" class="sub px-3 py-1.5 rounded-full text-sm font-semibold">Asignadas por mí</button>
+        <button onclick="toggleForm()" class="ml-auto bg-amber-500 text-[#0B1320] px-3 py-1.5 rounded-full text-sm font-bold">+ Nueva</button>
+      </div>
+
+      <div id="form-tarea" class="hidden bg-white rounded-xl border p-4 mb-4 shadow-sm">
+        <input id="t-titulo" placeholder="¿Qué hay que hacer?" class="w-full p-2.5 mb-2 border rounded-lg">
+        <textarea id="t-desc" rows="2" placeholder="Detalle (opcional)" class="w-full p-2.5 mb-2 border rounded-lg"></textarea>
+        <div class="flex gap-2 mb-3">
+          <select id="t-prio" class="flex-1 p-2.5 border rounded-lg"><option value="baja">Prioridad baja</option><option value="media" selected>Prioridad media</option><option value="alta">Prioridad alta</option></select>
+          <input id="t-fecha" type="date" class="flex-1 p-2.5 border rounded-lg">
+        </div>
+        <div id="bloque-asignar">
+          <div class="text-sm font-semibold mb-1">Asignar a</div>
+          <div id="chips-rol" class="flex flex-wrap gap-1.5 mb-2"></div>
+          <div id="lista-usuarios" class="max-h-40 overflow-y-auto border rounded-lg divide-y"></div>
+        </div>
+        <p id="t-hint" class="text-xs text-slate-500 mt-2 hidden">Sin destinatarios, la tarea será solo para ti.</p>
+        <button onclick="crearTarea()" class="w-full mt-3 bg-[#0B1320] text-white p-2.5 rounded-lg font-bold">Crear tarea</button>
+      </div>
+
+      <div id="lista-tareas"></div>
+    </section>
+  </main>
+</div>
+
+<script>
+// --- CONFIGURACIÓN SUPABASE ---
+const cliente = supabase.createClient(
+  'https://vwhkupadhcfqbquayqzz.supabase.co', 
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3aGt1cGFkaGNmcWJxdWF5cXp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3MzM5MTMsImV4cCI6MjEwNjMwOTkxM30.tFwvSpDc_T4HF5ETVTrLjFAZDRLhzkFI61bHp-9Xy44'
+);
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const safeUrl = u => /^https?:\/\//i.test(u) ? u : '#';
+const formFecha = f => f ? f.split('-').reverse().join('/') : ''; // Convierte YYYY-MM-DD a DD/MM/YYYY
+
+const PUEDE_ASIGNAR = ['admin', 'logistica', 'supervisor'];
+let yo = null, recursos = [], usuarios = [], tareas = [], avisos = [], tab = 'formulario', sub = 'mias';
+
+// --- SESIÓN ---
+async function iniciarSesion() {
+  const { error } = await cliente.auth.signInWithPassword({ email: $('email').value, password:$('password').value });
+  if (error) { $('error-msg').textContent = 'Credenciales incorrectas';$('error-msg').classList.remove('hidden'); }
+  else { $('error-msg').classList.add('hidden'); iniciarApp(); }
+}
+async function cerrarSesion() {
+  await cliente.auth.signOut();
+  $('app').classList.add('hidden');$('login').classList.remove('hidden');
+  $('email').value =$('password').value = '';
+}
+async function iniciarApp() {
+  const { data: { user } } = await cliente.auth.getUser();
+  const { data: p } = await cliente.from('perfiles').select('*').eq('id', user.id).single();
+  if (!p) return cerrarSesion();
+  yo = p;
+  
+  // Muestra: Nombre · Rol | Sucursal
+  $('quien').textContent = `${p.nombre} · ${p.rol} | ${p.sucursal || 'Sin sucursal'}`;
+  $('login').classList.add('hidden'); $('app').classList.remove('hidden');$('sub-dadas').classList.toggle('hidden', !PUEDE_ASIGNAR.includes(p.rol));
+  
+  if(p.rol === 'logistica' || p.rol === 'admin') $('form-aviso').classList.remove('hidden');
+
+  const [r, u] = await Promise.all([
+    cliente.from('enlaces').select('*').order('categoria').order('titulo'),
+    cliente.from('perfiles').select('id,nombre,rol').order('nombre')
+  ]);
+  recursos = r.data || []; usuarios = u.data || [];
+  await cargarTareas(); await cargarAvisos();
+  irTab('formulario');
+}
+
+// --- NAVEGACIÓN ---
+document.querySelectorAll('.tab').forEach(b => b.onclick = () => irTab(b.dataset.tab));
+function irTab(t) {
+  tab = t;
+  document.querySelectorAll('.tab').forEach(b => b.className = 'tab flex-1 py-3 px-2 font-semibold border-b-4 whitespace-nowrap ' + (b.dataset.tab === t ? 'tab-on' : 'tab-off'));
+  $('v-recursos').classList.toggle('hidden', !['formulario', 'manual'].includes(t));
+  $('v-tareas').classList.toggle('hidden', t !== 'tareas');$('v-avisos').classList.toggle('hidden', t !== 'avisos');
+  
+  if (t === 'tareas') subTareas(sub); 
+  else if (t === 'avisos') pintarAvisos();
+  else { $('buscar').value = ''; pintarRecursos(); }
+}
+
+// --- RECURSOS ---
+function pintarRecursos() {
+  const q = $('buscar').value.toLowerCase();
+  const items = recursos.filter(r => (r.tipo || 'formulario') === tab && (r.titulo + ' ' + (r.descripcion || '')).toLowerCase().includes(q));
+  if (!items.length) { $('lista-recursos').innerHTML = `<p class="text-center text-slate-500 py-8">Vacío.</p>`; return; }
+  const grupos = {};
+  items.forEach(r => (grupos[r.categoria || 'General'] ||= []).push(r));
+  $('lista-recursos').innerHTML = Object.entries(grupos).map(([cat, list]) => `
+    <h3 class="font-bold text-slate-500 text-sm mt-5 mb-2">${esc(cat)}</h3>
+    ${list.map(r => `
+      <a href="${esc(safeUrl(r.url))}" target="_blank" rel="noopener" class="block bg-white rounded-xl border border-l-4 border-l-[#0B1320] p-4 mb-3 hover:shadow-md transition">
+        <div class="flex justify-between items-start gap-2"><span class="font-bold text-lg">${esc(r.titulo)}</span></div>${r.descripcion ? `<p class="text-sm text-slate-600 mt-1">${esc(r.descripcion)}</p>` : ''}
+      </a>`).join('')}`).join('');
+}
+
+// --- AVISOS ---
+async function cargarAvisos() {
+  const { data } = await cliente.from('avisos').select('*, autor:perfiles(nombre, sucursal)').order('fecha_creacion', { ascending: false });
+  avisos = data || [];
+}
+function pintarAvisos() {
+    if (!avisos.length) { $('lista-avisos').innerHTML = '<p class="text-center text-slate-500 py-8">Sin comunicados.</p>'; return; }
+    $('lista-avisos').innerHTML = avisos.map(a => {
+        // Formato DD/MM/YYYY, HH:MM
+        const fecha = new Date(a.fecha_creacion).toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute:'2-digit' });
+        const imgHtml = a.imagen_url ? `<img src="${esc(a.imagen_url)}" class="mt-3 rounded-lg max-h-64 object-cover w-full border border-gray-200">` : '';
+        const delBtn = ['logistica', 'admin'].includes(yo.rol) ? `<button onclick="borrarAviso(${a.id})" class="text-red-500 text-xs font-semibold mt-3 hover:underline">🗑️ Eliminar aviso</button>` : '';
+        
+        return `
+        <div class="bg-white rounded-xl border border-l-4 border-l-blue-500 p-4 mb-4 shadow-sm">
+            <div class="flex justify-between items-start mb-2">
+                <div>
+                  <span class="font-bold text-blue-900 text-sm">${esc(a.autor?.nombre || 'Administración')}</span>
+                  <span class="text-xs text-slate-500 ml-1">(${esc(a.autor?.sucursal || 'Central')})</span>
+                </div>
+                <span class="text-xs text-slate-400 whitespace-nowrap ml-2">${fecha}</span>
+            </div>
+            <p class="text-slate-800 whitespace-pre-wrap">${esc(a.mensaje)}</p>
+            ${imgHtml}
+            ${delBtn}
+        </div>`;
+    }).join('');
+}
+async function crearAviso() {
+    const msj = $('a-mensaje').value.trim();
+    const img = $('a-img').value.trim();
+    if (!msj && !img) return;
+    const { error } = await cliente.from('avisos').insert({ mensaje: msj, imagen_url: img || null });
+    if (error) return alert('Error al publicar: ' + error.message);
+    $('a-mensaje').value = '';$('a-img').value = '';
+    await cargarAvisos(); pintarAvisos();
+}
+async function borrarAviso(id) {
+    if (!confirm('¿Eliminar este aviso definitivamente?')) return;
+    await cliente.from('avisos').delete().eq('id', id);
+    await cargarAvisos(); pintarAvisos();
+}
+
+// --- TAREAS ---
+async function cargarTareas() {
+  const { data } = await cliente.from('tareas').select('*, creador:perfiles!creado_por(nombre), tarea_asignados(usuario_id, estado, perfil:perfiles(nombre))').order('created_at', { ascending: false });
+  tareas = data || [];
+  const pend = tareas.filter(t => t.tarea_asignados.some(a => a.usuario_id === yo.id && a.estado !== 'hecha')).length;
+  $('badge').textContent = pend; $('badge').classList.toggle('hidden', !pend);
+}
+function subTareas(s) {
+  sub = s;
+  document.querySelectorAll('.sub').forEach(b => b.className = 'sub px-3 py-1.5 rounded-full text-sm font-semibold ' + (b.id === 'sub-' + s ? 'bg-[#0B1320] text-white' : 'bg-white border text-slate-600'));
+  pintarTareas();
+}
+function pintarTareas() {
+  const hoy = new Date().toISOString().slice(0, 10);
+  const lista = sub === 'mias' ? tareas.filter(t => t.tarea_asignados.some(a => a.usuario_id === yo.id)) : tareas.filter(t => t.creado_por === yo.id && t.tarea_asignados.some(a => a.usuario_id !== yo.id));
+  if (!lista.length) { $('lista-tareas').innerHTML = '<p class="text-center text-slate-500 py-8">Sin tareas.</p>'; return; }
+  const prioColor = { alta: 'border-l-red-500', media: 'border-l-amber-500', baja: 'border-l-slate-300' };
+  $('lista-tareas').innerHTML = lista.map(t => {
+    const mia = t.tarea_asignados.find(a => a.usuario_id === yo.id);
+    const vencida = t.fecha_limite && t.fecha_limite < hoy && !t.tarea_asignados.every(a => a.estado === 'hecha');
+    return `<div class="bg-white rounded-xl border border-l-4 ${prioColor[t.prioridad] || ''} p-4 mb-3">
+      <div class="font-bold">${esc(t.titulo)}</div>
+      ${t.descripcion ? `<p class="text-sm text-slate-600 mt-1">${esc(t.descripcion)}</p>` : ''}
+      <div class="text-xs mt-2 ${vencida ? 'text-red-600 font-semibold' : 'text-slate-500'}">
+        ${t.fecha_limite ? (vencida ? 'Vencida: ' : 'Para el ') + formFecha(t.fecha_limite) + ' · ' : ''}De ${esc(t.creador?.nombre || '—')}
+      </div>
+      ${sub === 'mias' && mia ? `
+        <select onchange="cambiarEstado(${t.id}, this.value)" class="mt-3 text-sm p-1.5 rounded border est-${mia.estado}">
+          ${['pendiente', 'en_curso', 'hecha'].map(e => `<option value="${e}" ${e === mia.estado ? 'selected' : ''}>${e.replace('_', ' ')}</option>`).join('')}
+        </select>` : `
+        <div class="flex flex-wrap gap-1.5 mt-3">${t.tarea_asignados.map(a => `<span class="text-xs px-2 py-1 rounded-full est-${a.estado}">${esc(a.perfil?.nombre || '—')}: ${a.estado.replace('_', ' ')}</span>`).join('')}</div>
+        <button onclick="borrarTarea(${t.id})" class="text-xs text-red-600 mt-2 hover:underline">Eliminar</button>`}
+    </div>`;
+  }).join('');
+}
+async function cambiarEstado(id, estado) {
+  await cliente.from('tarea_asignados').update({ estado, actualizado: new Date().toISOString() }).eq('tarea_id', id).eq('usuario_id', yo.id);
+  await cargarTareas(); pintarTareas();
+}
+async function borrarTarea(id) {
+  if (!confirm('¿Eliminar esta tarea para todos los involucrados?')) return;
+  await cliente.from('tareas').delete().eq('id', id);
+  await cargarTareas(); pintarTareas();
+}
+function toggleForm() {
+  const f = $('form-tarea'); f.classList.toggle('hidden');
+  if (f.classList.contains('hidden')) return;
+  const puede = PUEDE_ASIGNAR.includes(yo.rol);
+  $('bloque-asignar').classList.toggle('hidden', !puede);$('t-hint').classList.toggle('hidden', puede);
+  if (!puede) $('t-hint').textContent = 'Esta tarea será solo para ti.';
+  const roles = [...new Set(usuarios.map(u => u.rol))];
+  $('chips-rol').innerHTML = roles.map(r => `<button type="button" onclick="marcarRol('${esc(r)}')" class="text-xs px-2.5 py-1 rounded-full border bg-slate-50 hover:bg-amber-100">Todos: ${esc(r)}</button>`).join('');
+  $('lista-usuarios').innerHTML = usuarios.filter(u => u.id !== yo.id).map(u => `<label class="flex items-center gap-2 p-2 text-sm"><input type="checkbox" class="chk-u" value="${u.id}" data-rol="${esc(u.rol)}"> ${esc(u.nombre)} <span class="text-slate-400">· ${esc(u.rol)}</span></label>`).join('');
+}
+function marcarRol(rol) { document.querySelectorAll('.chk-u').forEach(c => { if (c.dataset.rol === rol) c.checked = true; }); }
+async function crearTarea() {
+  const titulo = $('t-titulo').value.trim();
+  if (!titulo) return alert('Escribe un título.');
+  const { data: t, error } = await cliente.from('tareas').insert({ titulo, descripcion: $('t-desc').value.trim() || null, prioridad: $('t-prio').value, fecha_limite:$('t-fecha').value || null }).select().single();
+  if (error) return alert('No se pudo crear: ' + error.message);
+  const ids = PUEDE_ASIGNAR.includes(yo.rol) ? [...document.querySelectorAll('.chk-u:checked')].map(c => c.value) : [];
+  const filas = [...new Set([yo.id, ...ids])].map(u => ({ tarea_id: t.id, usuario_id: u }));
+  const destino = ids.length ? ids.map(u => ({ tarea_id: t.id, usuario_id: u })) : filas;
+  await cliente.from('tarea_asignados').insert(destino);
+  ['t-titulo', 't-desc', 't-fecha'].forEach(i => $(i).value = '');$('form-tarea').classList.add('hidden');
+  await cargarTareas(); subTareas(ids.length ? 'dadas' : 'mias');
+}
+
+// --- ARRANQUE ---
+cliente.auth.getSession().then(({ data: { session } }) => { if (session) iniciarApp(); });
+</script>
+</body>
+</html>
