@@ -1,6 +1,6 @@
 {
   "name": "Conecsa Go",
-  "short_name": "Conecsa",
+  "short_name": "Conecsa Go",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f8fafc",
