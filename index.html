@@ -12,19 +12,24 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-  .tab-on{color:#0B1320;border-color:#F59E0B}
-  .tab-off{color:#6b7280;border-color:transparent}
+  /* Animaciones y estilos para la nueva barra inferior */
+  .nav-bottom { padding-bottom: env(safe-area-inset-bottom, 12px); }
+  .tab-on { color: #0B1320; }
+  .tab-on svg { stroke: #F59E0B; stroke-width: 2.2; transform: translateY(-2px); transition: all 0.2s; }
+  .tab-off { color: #9ca3af; }
+  .tab-off svg { stroke: #9ca3af; stroke-width: 1.5; transition: all 0.2s; }
+  
   .est-pendiente{background:#fef3c7;color:#92400e}
   .est-en_curso{background:#dbeafe;color:#1e40af}
   .est-hecha{background:#d1fae5;color:#065f46}
 </style>
 </head>
-<body class="bg-slate-100 text-slate-800 min-h-screen">
+<body class="bg-slate-50 text-slate-800 min-h-screen">
 
 <!-- LOGIN -->
 <div id="login" class="min-h-screen flex items-center justify-center p-4">
   <div class="bg-white p-8 rounded-xl shadow-md w-full max-w-sm">
-    <img src="LogoConecsa.jpg" alt="Conecsa" class="h-24 w-24 object-contain mx-auto mb-4">
+    <img src="MMMMM.jpg" alt="Conecsa" class="h-24 w-24 object-contain mx-auto mb-4">
     <h1 class="text-xl font-bold text-center mb-6">Acceso Operativo</h1>
     <input id="email" type="email" placeholder="Correo electrónico" class="w-full p-3 mb-3 border rounded-lg focus:outline-none focus:border-[#0B1320]">
     <input id="password" type="password" placeholder="Contraseña" class="w-full p-3 mb-5 border rounded-lg focus:outline-none focus:border-[#0B1320]" onkeydown="if(event.key==='Enter')iniciarSesion()">
@@ -35,41 +40,33 @@
 
 <!-- APP -->
 <div id="app" class="hidden">
-  <header class="bg-[#0B1320] text-white px-4 py-3 flex justify-between items-center sticky top-0 z-10">
+  <!-- CABECERA SUPERIOR LIMPIA -->
+  <header class="bg-[#0B1320] text-white px-4 py-3 flex justify-between items-center sticky top-0 z-10 shadow-sm">
     <div class="flex items-center gap-3">
-      <img src="LogoConecsa.jpg" alt="" class="h-9 w-9 bg-white rounded-full p-0.5 object-contain">
+      <img src="MMMMM.jpg" alt="" class="h-9 w-9 bg-white rounded-full p-0.5 object-contain">
       <div class="leading-tight">
-        <div class="font-bold">Conecsa Go</div>
+        <div class="font-bold tracking-wide">Conecsa Go</div>
         <div id="quien" class="text-xs text-slate-300"></div>
       </div>
     </div>
-    <button onclick="cerrarSesion()" class="text-sm bg-slate-700 px-3 py-1 rounded hover:bg-slate-600">Salir</button>
+    <button onclick="cerrarSesion()" class="text-xs bg-slate-700/50 border border-slate-600 px-3 py-1.5 rounded-lg hover:bg-slate-600 transition">Salir</button>
   </header>
 
-  <!-- NAVEGACIÓN -->
-  <nav class="bg-white border-b flex max-w-2xl mx-auto sticky top-[60px] z-10 overflow-x-auto text-sm sm:text-base">
-    <button data-tab="formulario" class="tab flex-1 py-3 px-2 font-semibold border-b-4 whitespace-nowrap">Formularios</button>
-    <button data-tab="manual" class="tab flex-1 py-3 px-2 font-semibold border-b-4 whitespace-nowrap">Procesos</button>
-    <!-- Pestaña de Respuestas (Visible solo para roles superiores) -->
-    <button id="tab-respuestas" data-tab="respuesta" class="tab hidden flex-1 py-3 px-2 font-semibold border-b-4 whitespace-nowrap text-amber-700">Respuestas</button>
-    <button data-tab="avisos" class="tab flex-1 py-3 px-2 font-semibold border-b-4 whitespace-nowrap">Avisos</button>
-    <button data-tab="tareas" class="tab flex-1 py-3 px-2 font-semibold border-b-4 whitespace-nowrap">Tareas <span id="badge" class="hidden ml-1 text-xs bg-amber-500 text-white rounded-full px-1.5"></span></button>
-  </nav>
-
-  <main class="max-w-2xl mx-auto p-4">
+  <!-- EL CONTENIDO AHORA TIENE PADDING INFERIOR PARA NO TAPARSE CON LA BARRA -->
+  <main class="max-w-2xl mx-auto p-4 pb-24">
     <!-- Recursos (Formularios, Procesos y Respuestas) -->
     <section id="v-recursos">
-      <input id="buscar" oninput="pintarRecursos()" placeholder="Buscar…" class="w-full p-3 mb-4 border rounded-lg bg-white focus:outline-none focus:border-[#0B1320]">
+      <input id="buscar" oninput="pintarRecursos()" placeholder="Buscar documento..." class="w-full p-3 mb-4 border border-slate-200 rounded-xl bg-white shadow-sm focus:outline-none focus:border-[#0B1320] focus:ring-1 focus:ring-[#0B1320]">
       <div id="lista-recursos"></div>
     </section>
 
     <!-- Avisos -->
     <section id="v-avisos" class="hidden">
-      <div id="form-aviso" class="hidden bg-blue-50 rounded-xl border border-blue-200 p-4 mb-5">
+      <div id="form-aviso" class="hidden bg-blue-50/50 rounded-xl border border-blue-100 p-4 mb-5">
         <h3 class="font-bold text-blue-800 mb-2">Publicar nuevo aviso</h3>
-        <textarea id="a-mensaje" rows="2" placeholder="Comunicado..." class="w-full p-2.5 mb-2 border rounded-lg focus:outline-none focus:border-blue-500"></textarea>
-        <input id="a-img" type="url" placeholder="URL de imagen (opcional)" class="w-full p-2.5 mb-3 border rounded-lg focus:outline-none focus:border-blue-500 text-sm">
-        <button onclick="crearAviso()" class="w-full bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg font-bold">Enviar a todos</button>
+        <textarea id="a-mensaje" rows="2" placeholder="Escribe el comunicado..." class="w-full p-2.5 mb-2 border border-blue-200 rounded-lg focus:outline-none focus:border-blue-500 bg-white"></textarea>
+        <input id="a-img" type="url" placeholder="URL de imagen (opcional)" class="w-full p-2.5 mb-3 border border-blue-200 rounded-lg focus:outline-none focus:border-blue-500 bg-white text-sm">
+        <button onclick="crearAviso()" class="w-full bg-blue-600 hover:bg-blue-700 transition text-white p-2.5 rounded-lg font-bold shadow-sm">Enviar a todos</button>
       </div>
       <div id="lista-avisos"></div>
     </section>
@@ -77,30 +74,55 @@
     <!-- Tareas -->
     <section id="v-tareas" class="hidden">
       <div class="flex gap-2 mb-4">
-        <button id="sub-mias" onclick="subTareas('mias')" class="sub px-3 py-1.5 rounded-full text-sm font-semibold">Mis tareas</button>
-        <button id="sub-dadas" onclick="subTareas('dadas')" class="sub px-3 py-1.5 rounded-full text-sm font-semibold">Asignadas por mí</button>
-        <button onclick="toggleForm()" class="ml-auto bg-amber-500 text-[#0B1320] px-3 py-1.5 rounded-full text-sm font-bold">+ Nueva</button>
+        <button id="sub-mias" onclick="subTareas('mias')" class="sub px-4 py-1.5 rounded-full text-sm font-semibold transition">Mis tareas</button>
+        <button id="sub-dadas" onclick="subTareas('dadas')" class="sub px-4 py-1.5 rounded-full text-sm font-semibold transition">Asignadas</button>
+        <button onclick="toggleForm()" class="ml-auto bg-amber-500 text-[#0B1320] px-4 py-1.5 rounded-full text-sm font-bold shadow-sm">+ Nueva</button>
       </div>
 
-      <div id="form-tarea" class="hidden bg-white rounded-xl border p-4 mb-4 shadow-sm">
-        <input id="t-titulo" placeholder="¿Qué hay que hacer?" class="w-full p-2.5 mb-2 border rounded-lg">
-        <textarea id="t-desc" rows="2" placeholder="Detalle (opcional)" class="w-full p-2.5 mb-2 border rounded-lg"></textarea>
+      <div id="form-tarea" class="hidden bg-white rounded-xl border border-slate-200 p-4 mb-4 shadow-sm">
+        <input id="t-titulo" placeholder="¿Qué hay que hacer?" class="w-full p-2.5 mb-2 border rounded-lg bg-slate-50 focus:bg-white focus:outline-none focus:border-[#0B1320]">
+        <textarea id="t-desc" rows="2" placeholder="Detalle adicional (opcional)" class="w-full p-2.5 mb-2 border rounded-lg bg-slate-50 focus:bg-white focus:outline-none focus:border-[#0B1320]"></textarea>
         <div class="flex gap-2 mb-3">
-          <select id="t-prio" class="flex-1 p-2.5 border rounded-lg"><option value="baja">Prioridad baja</option><option value="media" selected>Prioridad media</option><option value="alta">Prioridad alta</option></select>
-          <input id="t-fecha" type="date" class="flex-1 p-2.5 border rounded-lg">
+          <select id="t-prio" class="flex-1 p-2.5 border rounded-lg bg-slate-50"><option value="baja">Prioridad baja</option><option value="media" selected>Prioridad media</option><option value="alta">Prioridad alta</option></select>
+          <input id="t-fecha" type="date" class="flex-1 p-2.5 border rounded-lg bg-slate-50">
         </div>
         <div id="bloque-asignar">
-          <div class="text-sm font-semibold mb-1">Asignar a</div>
+          <div class="text-sm font-semibold mb-2 text-slate-700">Asignar a:</div>
           <div id="chips-rol" class="flex flex-wrap gap-1.5 mb-2"></div>
-          <div id="lista-usuarios" class="max-h-40 overflow-y-auto border rounded-lg divide-y"></div>
+          <div id="lista-usuarios" class="max-h-40 overflow-y-auto border rounded-lg divide-y bg-slate-50"></div>
         </div>
-        <p id="t-hint" class="text-xs text-slate-500 mt-2 hidden">Sin destinatarios, la tarea será solo para ti.</p>
-        <button onclick="crearTarea()" class="w-full mt-3 bg-[#0B1320] text-white p-2.5 rounded-lg font-bold">Crear tarea</button>
+        <p id="t-hint" class="text-xs text-slate-500 mt-2 hidden text-center bg-slate-100 p-2 rounded-lg">Esta tarea será exclusivamente para ti.</p>
+        <button onclick="crearTarea()" class="w-full mt-3 bg-[#0B1320] text-white p-3 rounded-lg font-bold shadow-md">Crear tarea</button>
       </div>
 
       <div id="lista-tareas"></div>
     </section>
   </main>
+
+  <!-- NUEVA NAVEGACIÓN INFERIOR ESTILO APP -->
+  <nav class="bg-white border-t border-slate-200 flex max-w-2xl mx-auto fixed bottom-0 w-full z-50 left-1/2 -translate-x-1/2 nav-bottom shadow-[0_-4px_20px_rgba(0,0,0,0.04)]">
+    <button data-tab="formulario" class="tab flex-1 pt-3 pb-2 flex flex-col items-center gap-1 font-medium text-[10px] sm:text-xs relative">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
+      <span>Forms</span>
+    </button>
+    <button data-tab="manual" class="tab flex-1 pt-3 pb-2 flex flex-col items-center gap-1 font-medium text-[10px] sm:text-xs relative">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" /></svg>
+      <span>Procesos</span>
+    </button>
+    <button id="tab-respuestas" data-tab="respuesta" class="tab hidden flex-1 pt-3 pb-2 flex flex-col items-center gap-1 font-medium text-[10px] sm:text-xs relative">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg>
+      <span>Data</span>
+    </button>
+    <button data-tab="avisos" class="tab flex-1 pt-3 pb-2 flex flex-col items-center gap-1 font-medium text-[10px] sm:text-xs relative">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" /></svg>
+      <span>Avisos</span>
+    </button>
+    <button data-tab="tareas" class="tab flex-1 pt-3 pb-2 flex flex-col items-center gap-1 font-medium text-[10px] sm:text-xs relative">
+      <span id="badge" class="hidden absolute top-1.5 right-3 sm:right-1/4 translate-x-1 text-[9px] bg-red-500 text-white font-bold rounded-full h-4 w-4 flex items-center justify-center shadow-sm"></span>
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" /></svg>
+      <span>Tareas</span>
+    </button>
+  </nav>
 </div>
 
 <script>
@@ -115,7 +137,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const safeUrl = u => /^https?:\/\//i.test(u) ? u : '#';
 const formFecha = f => f ? f.split('-').reverse().join('/') : '';
 
-// Roles superiores con permisos administrativos y de supervisión
+// Roles superiores que sí pueden asignar a otros y ver "Data"
 const PUEDE_ASIGNAR = ['admin', 'logistica', 'supervisor'];
 let yo = null, recursos = [], usuarios = [], tareas = [], avisos = [], tab = 'formulario', sub = 'mias';
 
@@ -136,13 +158,12 @@ async function iniciarApp() {
   if (!p) return cerrarSesion();
   yo = p;
   
-  $('quien').textContent = `${p.nombre} · ${p.rol} | ${p.sucursal || 'Sin sucursal'}`;
-  $('login').classList.add('hidden'); $('app').classList.remove('hidden');$('sub-dadas').classList.toggle('hidden', !PUEDE_ASIGNAR.includes(p.rol));
+  $('quien').textContent = `${p.nombre} · ${p.rol} | ${p.sucursal || 'Central'}`;
+  $('login').classList.add('hidden');$('app').classList.remove('hidden');
   
-  // Habilitar la pestaña de Respuestas solo a roles superiores
+  // Condicionales de vista según rol
   const esSuperior = PUEDE_ASIGNAR.includes(p.rol);
-  $('tab-respuestas').classList.toggle('hidden', !esSuperior);
-
+  $('sub-dadas').classList.toggle('hidden', !esSuperior);$('tab-respuestas').classList.toggle('hidden', !esSuperior);
   if(p.rol === 'logistica' || p.rol === 'admin') $('form-aviso').classList.remove('hidden');
 
   const [r, u] = await Promise.all([
@@ -154,13 +175,15 @@ async function iniciarApp() {
   irTab('formulario');
 }
 
-// --- NAVEGACIÓN ---
+// --- NUEVA NAVEGACIÓN (Actualiza el color de los íconos) ---
 document.querySelectorAll('.tab').forEach(b => b.onclick = () => irTab(b.dataset.tab));
 function irTab(t) {
   tab = t;
-  document.querySelectorAll('.tab').forEach(b => b.className = 'tab flex-1 py-3 px-2 font-semibold border-b-4 whitespace-nowrap ' + (b.dataset.tab === t ? 'tab-on' : 'tab-off'));
+  document.querySelectorAll('.tab').forEach(b => {
+    b.classList.remove('tab-on', 'tab-off');
+    b.classList.add(b.dataset.tab === t ? 'tab-on' : 'tab-off');
+  });
   
-  // v-recursos procesa formularios, manuales y respuestas
   $('v-recursos').classList.toggle('hidden', !['formulario', 'manual', 'respuesta'].includes(t));
   $('v-tareas').classList.toggle('hidden', t !== 'tareas');$('v-avisos').classList.toggle('hidden', t !== 'avisos');
   
@@ -169,40 +192,38 @@ function irTab(t) {
   else { $('buscar').value = ''; pintarRecursos(); }
 }
 
-// --- RECURSOS (Agrupación normalizada) ---
+// --- RECURSOS ---
 function pintarRecursos() {
   const q = $('buscar').value.toLowerCase();
   const items = recursos.filter(r => (r.tipo || 'formulario') === tab && (r.titulo + ' ' + (r.descripcion || '')).toLowerCase().includes(q));
   
   if (!items.length) { 
-    const etiquetas = { formulario: 'formularios', manual: 'procesos', respuesta: 'hojas de respuestas' };
-    $('lista-recursos').innerHTML = `<p class="text-center text-slate-500 py-8">No hay ${etiquetas[tab] || 'elementos'} disponibles.</p>`; 
+    const etiquetas = { formulario: 'formularios', manual: 'procesos', respuesta: 'bases de datos' };
+    $('lista-recursos').innerHTML = `<p class="text-center text-slate-500 py-10">No hay ${etiquetas[tab] || 'elementos'} disponibles.</p>`; 
     return; 
   }
 
-  // Agrupación estricta eliminando espacios en blanco accidentales
   const grupos = {};
   items.forEach(r => {
     let cat = (r.categoria || 'General').trim();
     if (!cat) cat = 'General';
-    // Capitaliza la primera letra para unificar variaciones de minúscula
     cat = cat.charAt(0).toUpperCase() + cat.slice(1);
     (grupos[cat] ||= []).push(r);
   });
 
-  const textoAccion = tab === 'manual' ? 'Abrir documento' : tab === 'respuesta' ? 'Ver hoja de respuestas 📊' : 'Llenar formulario';
+  const textoAccion = tab === 'manual' ? 'Abrir documento' : tab === 'respuesta' ? 'Ver respuestas 📊' : 'Llenar formulario';
 
   $('lista-recursos').innerHTML = Object.entries(grupos).map(([cat, list]) => `
     <div class="mb-6">
-      <h3 class="font-bold text-slate-600 text-sm uppercase tracking-wider mb-2 border-b pb-1">${esc(cat)}</h3>
+      <h3 class="font-bold text-slate-400 text-xs uppercase tracking-wider mb-3 ml-1">${esc(cat)}</h3>
       ${list.map(r => `
-        <a href="${esc(safeUrl(r.url))}" target="_blank" rel="noopener" class="block bg-white rounded-xl border border-l-4 ${tab === 'respuesta' ? 'border-l-emerald-600' : 'border-l-[#0B1320]'} p-4 mb-3 hover:shadow-md transition">
+        <a href="${esc(safeUrl(r.url))}" target="_blank" rel="noopener" class="block bg-white rounded-xl border border-slate-200 border-l-4 ${tab === 'respuesta' ? 'border-l-emerald-500' : 'border-l-[#0B1320]'} p-4 mb-3 hover:shadow-md transition">
           <div class="flex justify-between items-start gap-2">
-            <span class="font-bold text-lg">${esc(r.titulo)}</span>
-            <span class="text-xs text-slate-400 whitespace-nowrap">${r.version ? 'v' + esc(r.version) : ''}</span>
+            <span class="font-bold text-slate-800 text-[15px]">${esc(r.titulo)}</span>
+            <span class="text-xs font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full whitespace-nowrap">${r.version ? 'v' + esc(r.version) : ''}</span>
           </div>
-          ${r.descripcion ? `<p class="text-sm text-slate-600 mt-1">${esc(r.descripcion)}</p>` : ''}
-          <span class="inline-block mt-2 text-sm font-semibold ${tab === 'respuesta' ? 'text-emerald-700' : 'text-amber-600'}">${textoAccion}</span>
+          ${r.descripcion ? `<p class="text-sm text-slate-500 mt-1.5 leading-snug">${esc(r.descripcion)}</p>` : ''}
+          <span class="inline-block mt-3 text-xs font-bold ${tab === 'respuesta' ? 'text-emerald-600' : 'text-amber-600'}">${textoAccion}</span>
         </a>`).join('')}
     </div>`).join('');
 }
@@ -213,22 +234,22 @@ async function cargarAvisos() {
   avisos = data || [];
 }
 function pintarAvisos() {
-    if (!avisos.length) { $('lista-avisos').innerHTML = '<p class="text-center text-slate-500 py-8">Sin comunicados.</p>'; return; }
+    if (!avisos.length) { $('lista-avisos').innerHTML = '<p class="text-center text-slate-500 py-10">Sin comunicados recientes.</p>'; return; }
     $('lista-avisos').innerHTML = avisos.map(a => {
         const fecha = new Date(a.fecha_creacion).toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute:'2-digit' });
-        const imgHtml = a.imagen_url ? `<img src="${esc(a.imagen_url)}" class="mt-3 rounded-lg max-h-64 object-cover w-full border border-gray-200">` : '';
-        const delBtn = ['logistica', 'admin'].includes(yo.rol) ? `<button onclick="borrarAviso(${a.id})" class="text-red-500 text-xs font-semibold mt-3 hover:underline">🗑️️ Eliminar aviso</button>` : '';
+        const imgHtml = a.imagen_url ? `<img src="${esc(a.imagen_url)}" class="mt-3 rounded-lg max-h-64 object-cover w-full border border-slate-200">` : '';
+        const delBtn = ['logistica', 'admin'].includes(yo.rol) ? `<button onclick="borrarAviso(${a.id})" class="text-red-500 text-xs font-bold mt-3 hover:underline">🗑 Eliminar aviso</button>` : '';
         
         return `
-        <div class="bg-white rounded-xl border border-l-4 border-l-blue-500 p-4 mb-4 shadow-sm">
+        <div class="bg-white rounded-xl border border-slate-200 border-l-4 border-l-blue-500 p-4 mb-4 shadow-sm">
             <div class="flex justify-between items-start mb-2">
                 <div>
                   <span class="font-bold text-blue-900 text-sm">${esc(a.autor?.nombre || 'Administración')}</span>
-                  <span class="text-xs text-slate-500 ml-1">(${esc(a.autor?.sucursal || 'Central')})</span>
+                  <span class="text-[10px] uppercase font-bold text-slate-400 ml-1 bg-slate-100 px-1.5 py-0.5 rounded">${esc(a.autor?.sucursal || 'Central')}</span>
                 </div>
-                <span class="text-xs text-slate-400 whitespace-nowrap ml-2">${fecha}</span>
+                <span class="text-[10px] font-semibold text-slate-400 whitespace-nowrap ml-2">${fecha}</span>
             </div>
-            <p class="text-slate-800 whitespace-pre-wrap">${esc(a.mensaje)}</p>
+            <p class="text-slate-700 text-sm leading-relaxed whitespace-pre-wrap">${esc(a.mensaje)}</p>
             ${imgHtml}
             ${delBtn}
         </div>`;
@@ -258,29 +279,29 @@ async function cargarTareas() {
 }
 function subTareas(s) {
   sub = s;
-  document.querySelectorAll('.sub').forEach(b => b.className = 'sub px-3 py-1.5 rounded-full text-sm font-semibold ' + (b.id === 'sub-' + s ? 'bg-[#0B1320] text-white' : 'bg-white border text-slate-600'));
+  document.querySelectorAll('.sub').forEach(b => b.className = 'sub px-4 py-1.5 rounded-full text-sm font-semibold transition ' + (b.id === 'sub-' + s ? 'bg-[#0B1320] text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-50'));
   pintarTareas();
 }
 function pintarTareas() {
   const hoy = new Date().toISOString().slice(0, 10);
   const lista = sub === 'mias' ? tareas.filter(t => t.tarea_asignados.some(a => a.usuario_id === yo.id)) : tareas.filter(t => t.creado_por === yo.id && t.tarea_asignados.some(a => a.usuario_id !== yo.id));
-  if (!lista.length) { $('lista-tareas').innerHTML = '<p class="text-center text-slate-500 py-8">Sin tareas.</p>'; return; }
+  if (!lista.length) { $('lista-tareas').innerHTML = '<p class="text-center text-slate-500 py-10">No hay tareas aquí.</p>'; return; }
   const prioColor = { alta: 'border-l-red-500', media: 'border-l-amber-500', baja: 'border-l-slate-300' };
   $('lista-tareas').innerHTML = lista.map(t => {
     const mia = t.tarea_asignados.find(a => a.usuario_id === yo.id);
     const vencida = t.fecha_limite && t.fecha_limite < hoy && !t.tarea_asignados.every(a => a.estado === 'hecha');
-    return `<div class="bg-white rounded-xl border border-l-4 ${prioColor[t.prioridad] || ''} p-4 mb-3">
-      <div class="font-bold">${esc(t.titulo)}</div>
-      ${t.descripcion ? `<p class="text-sm text-slate-600 mt-1">${esc(t.descripcion)}</p>` : ''}
-      <div class="text-xs mt-2 ${vencida ? 'text-red-600 font-semibold' : 'text-slate-500'}">
-        ${t.fecha_limite ? (vencida ? 'Vencida: ' : 'Para el ') + formFecha(t.fecha_limite) + ' · ' : ''}De ${esc(t.creador?.nombre || '—')}
+    return `<div class="bg-white rounded-xl border border-slate-200 border-l-4 ${prioColor[t.prioridad] || ''} p-4 mb-3 shadow-sm">
+      <div class="font-bold text-slate-800">${esc(t.titulo)}</div>
+      ${t.descripcion ? `<p class="text-sm text-slate-600 mt-1 leading-snug">${esc(t.descripcion)}</p>` : ''}
+      <div class="text-xs mt-2.5 font-medium ${vencida ? 'text-red-500' : 'text-slate-400'}">
+        ${t.fecha_limite ? (vencida ? '⚠️️ Vencida: ' : '📅 Para el ') + formFecha(t.fecha_limite) + ' · ' : ''}✍️ De ${esc(t.creador?.nombre || '—')}
       </div>
       ${sub === 'mias' && mia ? `
-        <select onchange="cambiarEstado(${t.id}, this.value)" class="mt-3 text-sm p-1.5 rounded border est-${mia.estado}">
-          ${['pendiente', 'en_curso', 'hecha'].map(e => `<option value="${e}" ${e === mia.estado ? 'selected' : ''}>${e.replace('_', ' ')}</option>`).join('')}
+        <select onchange="cambiarEstado(${t.id}, this.value)" class="mt-3 text-xs font-bold p-2 rounded-lg border outline-none est-${mia.estado}">
+          ${['pendiente', 'en_curso', 'hecha'].map(e => `<option value="${e}" ${e === mia.estado ? 'selected' : ''}>${e.replace('_', ' ').toUpperCase()}</option>`).join('')}
         </select>` : `
-        <div class="flex flex-wrap gap-1.5 mt-3">${t.tarea_asignados.map(a => `<span class="text-xs px-2 py-1 rounded-full est-${a.estado}">${esc(a.perfil?.nombre || '—')}: ${a.estado.replace('_', ' ')}</span>`).join('')}</div>
-        <button onclick="borrarTarea(${t.id})" class="text-xs text-red-600 mt-2 hover:underline">Eliminar</button>`}
+        <div class="flex flex-wrap gap-1.5 mt-3">${t.tarea_asignados.map(a => `<span class="text-[10px] font-bold px-2 py-1 rounded-full est-${a.estado}">${esc(a.perfil?.nombre || '—')}: ${a.estado.replace('_', ' ').toUpperCase()}</span>`).join('')}</div>
+        <button onclick="borrarTarea(${t.id})" class="text-xs font-bold text-red-500 mt-3 hover:underline">Eliminar tarea</button>`}
     </div>`;
   }).join('');
 }
@@ -289,7 +310,7 @@ async function cambiarEstado(id, estado) {
   await cargarTareas(); pintarTareas();
 }
 async function borrarTarea(id) {
-  if (!confirm('¿Eliminar esta tarea para todos los involucrados?')) return;
+  if (!confirm('¿Eliminar esta tarea de todos los involucrados?')) return;
   await cliente.from('tareas').delete().eq('id', id);
   await cargarTareas(); pintarTareas();
 }
@@ -298,15 +319,14 @@ function toggleForm() {
   if (f.classList.contains('hidden')) return;
   const puede = PUEDE_ASIGNAR.includes(yo.rol);
   $('bloque-asignar').classList.toggle('hidden', !puede);$('t-hint').classList.toggle('hidden', puede);
-  if (!puede) $('t-hint').textContent = 'Esta tarea será solo para ti.';
   const roles = [...new Set(usuarios.map(u => u.rol))];
-  $('chips-rol').innerHTML = roles.map(r => `<button type="button" onclick="marcarRol('${esc(r)}')" class="text-xs px-2.5 py-1 rounded-full border bg-slate-50 hover:bg-amber-100">Todos: ${esc(r)}</button>`).join('');
-  $('lista-usuarios').innerHTML = usuarios.filter(u => u.id !== yo.id).map(u => `<label class="flex items-center gap-2 p-2 text-sm"><input type="checkbox" class="chk-u" value="${u.id}" data-rol="${esc(u.rol)}"> ${esc(u.nombre)} <span class="text-slate-400">· ${esc(u.rol)}</span></label>`).join('');
+  $('chips-rol').innerHTML = roles.map(r => `<button type="button" onclick="marcarRol('${esc(r)}')" class="text-[10px] font-bold px-2.5 py-1 rounded-full border border-slate-200 bg-white text-slate-500 hover:bg-amber-100 hover:border-amber-300 hover:text-amber-800 transition uppercase tracking-wide">Rol: ${esc(r)}</button>`).join('');
+  $('lista-usuarios').innerHTML = usuarios.filter(u => u.id !== yo.id).map(u => `<label class="flex items-center gap-3 p-2.5 text-sm hover:bg-white cursor-pointer"><input type="checkbox" class="chk-u w-4 h-4 accent-[#0B1320]" value="${u.id}" data-rol="${esc(u.rol)}"> <div><span class="font-medium">${esc(u.nombre)}</span> <span class="text-xs font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded ml-1">${esc(u.rol)}</span></div></label>`).join('');
 }
 function marcarRol(rol) { document.querySelectorAll('.chk-u').forEach(c => { if (c.dataset.rol === rol) c.checked = true; }); }
 async function crearTarea() {
   const titulo = $('t-titulo').value.trim();
-  if (!titulo) return alert('Escribe un título.');
+  if (!titulo) return alert('Escribe un título para la tarea.');
   const { data: t, error } = await cliente.from('tareas').insert({ titulo, descripcion: $('t-desc').value.trim() || null, prioridad: $('t-prio').value, fecha_limite:$('t-fecha').value || null }).select().single();
   if (error) return alert('No se pudo crear: ' + error.message);
   const ids = PUEDE_ASIGNAR.includes(yo.rol) ? [...document.querySelectorAll('.chk-u:checked')].map(c => c.value) : [];
