@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Conecsa Go</title>
-  <link rel="manifest" href="manifest.json">
+<link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0B1320">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="apple-touch-icon" href="LogoConecsa.jpg">
+<link rel="apple-touch-icon" href="MMMMM.jpg">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
@@ -24,7 +24,7 @@
 <!-- LOGIN -->
 <div id="login" class="min-h-screen flex items-center justify-center p-4">
   <div class="bg-white p-8 rounded-xl shadow-md w-full max-w-sm">
-    <img src="LogoConecsa.jpg" alt="Conecsa" class="h-24 w-24 object-contain mx-auto mb-4">
+    <img src="MMMMM.jpg" alt="Conecsa" class="h-24 w-24 object-contain mx-auto mb-4">
     <h1 class="text-xl font-bold text-center mb-6">Acceso Operativo</h1>
     <input id="email" type="email" placeholder="Correo electrónico" class="w-full p-3 mb-3 border rounded-lg focus:outline-none focus:border-[#0B1320]">
     <input id="password" type="password" placeholder="Contraseña" class="w-full p-3 mb-5 border rounded-lg focus:outline-none focus:border-[#0B1320]" onkeydown="if(event.key==='Enter')iniciarSesion()">
@@ -37,7 +37,7 @@
 <div id="app" class="hidden">
   <header class="bg-[#0B1320] text-white px-4 py-3 flex justify-between items-center sticky top-0 z-10">
     <div class="flex items-center gap-3">
-      <img src="LogoConecsa.jpg" alt="" class="h-9 w-9 bg-white rounded-full p-0.5 object-contain">
+      <img src="MMMMM.jpg" alt="" class="h-9 w-9 bg-white rounded-full p-0.5 object-contain">
       <div class="leading-tight">
         <div class="font-bold">Conecsa Go</div>
         <div id="quien" class="text-xs text-slate-300"></div>
@@ -46,15 +46,18 @@
     <button onclick="cerrarSesion()" class="text-sm bg-slate-700 px-3 py-1 rounded hover:bg-slate-600">Salir</button>
   </header>
 
+  <!-- NAVEGACIÓN -->
   <nav class="bg-white border-b flex max-w-2xl mx-auto sticky top-[60px] z-10 overflow-x-auto text-sm sm:text-base">
     <button data-tab="formulario" class="tab flex-1 py-3 px-2 font-semibold border-b-4 whitespace-nowrap">Formularios</button>
     <button data-tab="manual" class="tab flex-1 py-3 px-2 font-semibold border-b-4 whitespace-nowrap">Procesos</button>
+    <!-- Pestaña de Respuestas (Visible solo para roles superiores) -->
+    <button id="tab-respuestas" data-tab="respuesta" class="tab hidden flex-1 py-3 px-2 font-semibold border-b-4 whitespace-nowrap text-amber-700">Respuestas</button>
     <button data-tab="avisos" class="tab flex-1 py-3 px-2 font-semibold border-b-4 whitespace-nowrap">Avisos</button>
     <button data-tab="tareas" class="tab flex-1 py-3 px-2 font-semibold border-b-4 whitespace-nowrap">Tareas <span id="badge" class="hidden ml-1 text-xs bg-amber-500 text-white rounded-full px-1.5"></span></button>
   </nav>
 
   <main class="max-w-2xl mx-auto p-4">
-    <!-- Recursos -->
+    <!-- Recursos (Formularios, Procesos y Respuestas) -->
     <section id="v-recursos">
       <input id="buscar" oninput="pintarRecursos()" placeholder="Buscar…" class="w-full p-3 mb-4 border rounded-lg bg-white focus:outline-none focus:border-[#0B1320]">
       <div id="lista-recursos"></div>
@@ -103,15 +106,16 @@
 <script>
 // --- CONFIGURACIÓN SUPABASE ---
 const cliente = supabase.createClient(
-  'https://vwhkupadhcfqbquayqzz.supabase.co', 
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3aGt1cGFkaGNmcWJxdWF5cXp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3MzM5MTMsImV4cCI6MjEwNjMwOTkxM30.tFwvSpDc_T4HF5ETVTrLjFAZDRLhzkFI61bHp-9Xy44'
+  'TU_URL_DE_SUPABASE', 
+  'TU_ANON_KEY'
 );
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeUrl = u => /^https?:\/\//i.test(u) ? u : '#';
-const formFecha = f => f ? f.split('-').reverse().join('/') : ''; // Convierte YYYY-MM-DD a DD/MM/YYYY
+const formFecha = f => f ? f.split('-').reverse().join('/') : '';
 
+// Roles superiores con permisos administrativos y de supervisión
 const PUEDE_ASIGNAR = ['admin', 'logistica', 'supervisor'];
 let yo = null, recursos = [], usuarios = [], tareas = [], avisos = [], tab = 'formulario', sub = 'mias';
 
@@ -132,10 +136,13 @@ async function iniciarApp() {
   if (!p) return cerrarSesion();
   yo = p;
   
-  // Muestra: Nombre · Rol | Sucursal
   $('quien').textContent = `${p.nombre} · ${p.rol} | ${p.sucursal || 'Sin sucursal'}`;
   $('login').classList.add('hidden'); $('app').classList.remove('hidden');$('sub-dadas').classList.toggle('hidden', !PUEDE_ASIGNAR.includes(p.rol));
   
+  // Habilitar la pestaña de Respuestas solo a roles superiores
+  const esSuperior = PUEDE_ASIGNAR.includes(p.rol);
+  $('tab-respuestas').classList.toggle('hidden', !esSuperior);
+
   if(p.rol === 'logistica' || p.rol === 'admin') $('form-aviso').classList.remove('hidden');
 
   const [r, u] = await Promise.all([
@@ -152,7 +159,9 @@ document.querySelectorAll('.tab').forEach(b => b.onclick = () => irTab(b.dataset
 function irTab(t) {
   tab = t;
   document.querySelectorAll('.tab').forEach(b => b.className = 'tab flex-1 py-3 px-2 font-semibold border-b-4 whitespace-nowrap ' + (b.dataset.tab === t ? 'tab-on' : 'tab-off'));
-  $('v-recursos').classList.toggle('hidden', !['formulario', 'manual'].includes(t));
+  
+  // v-recursos procesa formularios, manuales y respuestas
+  $('v-recursos').classList.toggle('hidden', !['formulario', 'manual', 'respuesta'].includes(t));
   $('v-tareas').classList.toggle('hidden', t !== 'tareas');$('v-avisos').classList.toggle('hidden', t !== 'avisos');
   
   if (t === 'tareas') subTareas(sub); 
@@ -160,19 +169,42 @@ function irTab(t) {
   else { $('buscar').value = ''; pintarRecursos(); }
 }
 
-// --- RECURSOS ---
+// --- RECURSOS (Agrupación normalizada) ---
 function pintarRecursos() {
   const q = $('buscar').value.toLowerCase();
   const items = recursos.filter(r => (r.tipo || 'formulario') === tab && (r.titulo + ' ' + (r.descripcion || '')).toLowerCase().includes(q));
-  if (!items.length) { $('lista-recursos').innerHTML = `<p class="text-center text-slate-500 py-8">Vacío.</p>`; return; }
+  
+  if (!items.length) { 
+    const etiquetas = { formulario: 'formularios', manual: 'procesos', respuesta: 'hojas de respuestas' };
+    $('lista-recursos').innerHTML = `<p class="text-center text-slate-500 py-8">No hay ${etiquetas[tab] || 'elementos'} disponibles.</p>`; 
+    return; 
+  }
+
+  // Agrupación estricta eliminando espacios en blanco accidentales
   const grupos = {};
-  items.forEach(r => (grupos[r.categoria || 'General'] ||= []).push(r));
+  items.forEach(r => {
+    let cat = (r.categoria || 'General').trim();
+    if (!cat) cat = 'General';
+    // Capitaliza la primera letra para unificar variaciones de minúscula
+    cat = cat.charAt(0).toUpperCase() + cat.slice(1);
+    (grupos[cat] ||= []).push(r);
+  });
+
+  const textoAccion = tab === 'manual' ? 'Abrir documento' : tab === 'respuesta' ? 'Ver hoja de respuestas 📊' : 'Llenar formulario';
+
   $('lista-recursos').innerHTML = Object.entries(grupos).map(([cat, list]) => `
-    <h3 class="font-bold text-slate-500 text-sm mt-5 mb-2">${esc(cat)}</h3>
-    ${list.map(r => `
-      <a href="${esc(safeUrl(r.url))}" target="_blank" rel="noopener" class="block bg-white rounded-xl border border-l-4 border-l-[#0B1320] p-4 mb-3 hover:shadow-md transition">
-        <div class="flex justify-between items-start gap-2"><span class="font-bold text-lg">${esc(r.titulo)}</span></div>${r.descripcion ? `<p class="text-sm text-slate-600 mt-1">${esc(r.descripcion)}</p>` : ''}
-      </a>`).join('')}`).join('');
+    <div class="mb-6">
+      <h3 class="font-bold text-slate-600 text-sm uppercase tracking-wider mb-2 border-b pb-1">${esc(cat)}</h3>
+      ${list.map(r => `
+        <a href="${esc(safeUrl(r.url))}" target="_blank" rel="noopener" class="block bg-white rounded-xl border border-l-4 ${tab === 'respuesta' ? 'border-l-emerald-600' : 'border-l-[#0B1320]'} p-4 mb-3 hover:shadow-md transition">
+          <div class="flex justify-between items-start gap-2">
+            <span class="font-bold text-lg">${esc(r.titulo)}</span>
+            <span class="text-xs text-slate-400 whitespace-nowrap">${r.version ? 'v' + esc(r.version) : ''}</span>
+          </div>
+          ${r.descripcion ? `<p class="text-sm text-slate-600 mt-1">${esc(r.descripcion)}</p>` : ''}
+          <span class="inline-block mt-2 text-sm font-semibold ${tab === 'respuesta' ? 'text-emerald-700' : 'text-amber-600'}">${textoAccion}</span>
+        </a>`).join('')}
+    </div>`).join('');
 }
 
 // --- AVISOS ---
@@ -183,10 +215,9 @@ async function cargarAvisos() {
 function pintarAvisos() {
     if (!avisos.length) { $('lista-avisos').innerHTML = '<p class="text-center text-slate-500 py-8">Sin comunicados.</p>'; return; }
     $('lista-avisos').innerHTML = avisos.map(a => {
-        // Formato DD/MM/YYYY, HH:MM
         const fecha = new Date(a.fecha_creacion).toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute:'2-digit' });
         const imgHtml = a.imagen_url ? `<img src="${esc(a.imagen_url)}" class="mt-3 rounded-lg max-h-64 object-cover w-full border border-gray-200">` : '';
-        const delBtn = ['logistica', 'admin'].includes(yo.rol) ? `<button onclick="borrarAviso(${a.id})" class="text-red-500 text-xs font-semibold mt-3 hover:underline">🗑️ Eliminar aviso</button>` : '';
+        const delBtn = ['logistica', 'admin'].includes(yo.rol) ? `<button onclick="borrarAviso(${a.id})" class="text-red-500 text-xs font-semibold mt-3 hover:underline">🗑️️ Eliminar aviso</button>` : '';
         
         return `
         <div class="bg-white rounded-xl border border-l-4 border-l-blue-500 p-4 mb-4 shadow-sm">
