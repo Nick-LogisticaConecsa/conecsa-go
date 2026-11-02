@@ -2,89 +2,171 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Conecsa Go</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0B1320">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="apple-touch-icon" href="MMMMM.jpg">
+<link rel="apple-touch-icon" href="LogoConecsa.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style type="text/tailwindcss">
+  @layer components {
+    .inp   { @apply w-full p-2.5 border border-slate-200 rounded-lg bg-slate-50 text-sm focus:bg-white focus:outline-none focus:border-[#0B1320]; }
+    .lbl   { @apply block text-xs font-semibold text-slate-500 mb-1; }
+    .btn   { @apply inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold transition active:scale-95 disabled:opacity-50 min-h-[40px]; }
+    .btn-sm { @apply !py-1.5 !text-xs min-h-[36px]; }
+    .btn-pri { @apply bg-[#0B1320] text-white hover:bg-slate-800; }
+    .btn-acc { @apply bg-amber-500 text-[#0B1320] hover:bg-amber-400; }
+    .btn-sec { @apply bg-white border border-slate-200 text-slate-600 hover:bg-slate-50; }
+    .btn-del { @apply bg-white border border-red-200 text-red-600 hover:bg-red-50; }
+    .card  { @apply bg-white rounded-xl border border-slate-200 shadow-sm; }
+    .chip  { @apply inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap; }
+    .filtro { @apply inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-full whitespace-nowrap border transition min-h-[36px]; }
+    .filtro-on  { @apply bg-[#0B1320] border-[#0B1320] text-white; }
+    .filtro-off { @apply bg-white border-slate-200 text-slate-600 hover:bg-slate-50; }
+    .meta  { @apply text-xs font-medium text-slate-500; }
+    .seccion { @apply text-[11px] font-bold text-slate-500 uppercase tracking-wider; }
+    .seg   { @apply px-4 py-1.5 rounded-full text-sm font-semibold transition whitespace-nowrap; }
+    .seg-on  { @apply bg-[#0B1320] text-white shadow-sm; }
+    .seg-off { @apply bg-white border border-slate-200 text-slate-500 hover:bg-slate-50; }
+    .vacio { @apply text-center text-slate-500 py-10 text-sm; }
+  }
+</style>
 <style>
-  /* Animaciones y estilos para la nueva barra inferior */
-  .nav-bottom { padding-bottom: env(safe-area-inset-bottom, 12px); }
+  /* superficies del navegador tematizadas con la paleta */
+  html { -webkit-tap-highlight-color: transparent; }
+  body { font-family: 'Figtree', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif; font-variant-numeric: tabular-nums; }
+  ::selection { background: #fde68a; color: #0B1320; }
+  input, textarea, select { caret-color: #F59E0B; accent-color: #0B1320; }
+  ::placeholder { color: #64748b; opacity: 1; }
+  :focus-visible { outline: 2px solid #F59E0B; outline-offset: 2px; border-radius: 6px; }
+  input:focus-visible, textarea:focus-visible, select:focus-visible { outline-offset: 0; }
+  h1, h2, h3 { text-wrap: balance; }
+  .nav-bottom { padding-bottom: max(env(safe-area-inset-bottom), 8px); }
   .tab-on { color: #0B1320; }
-  .tab-on svg { stroke: #F59E0B; stroke-width: 2.2; transform: translateY(-2px); transition: all 0.2s; }
+  .tab-on svg { stroke: #F59E0B; stroke-width: 2.2; transform: translateY(-2px); transition: all .2s; }
   .tab-off { color: #9ca3af; }
-  .tab-off svg { stroke: #9ca3af; stroke-width: 1.5; transition: all 0.2s; }
-  
+  .tab-off svg { stroke: #9ca3af; stroke-width: 1.5; transition: all .2s; }
+
+  /* estados de tareas */
   .est-pendiente{background:#fef3c7;color:#92400e}
-  .est-en_curso{background:#dbeafe;color:#1e40af}
+  .est-en_curso,.est-en_proceso{background:#dbeafe;color:#1e40af}
   .est-hecha{background:#d1fae5;color:#065f46}
+
+  /* semáforo de vencimientos */
+  .b-rojo{background:#fee2e2;color:#991b1b}
+  .b-ambar{background:#fef3c7;color:#92400e}
+  .b-verde{background:#d1fae5;color:#065f46}
+  .b-gris{background:#f1f5f9;color:#475569}
+
+  /* pasos DMAIC */
+  .step{width:28px;height:28px;border-radius:9999px;font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;transition:all .15s}
+  .step-done{background:#0B1320;color:#fff}
+  .step-on{background:#F59E0B;color:#0B1320;box-shadow:0 0 0 3px #fde68a}
+  .step-off{background:#e2e8f0;color:#94a3b8}
+  .step-line{flex:1;height:2px;background:#e2e8f0;min-width:8px}
+
+  /* tablero kanban: columnas deslizables en móvil, grilla en escritorio */
+  .kanban{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:8px}
+  .kanban>.col{min-width:84%;scroll-snap-align:center;flex:none}
+  @media(min-width:768px){.kanban{display:grid;grid-template-columns:repeat(3,1fr);overflow:visible}.kanban>.col{min-width:0}}
+
+  /* hoja inferior y avisos emergentes */
+  @keyframes subir{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}
+  .sheet-panel{animation:subir .18s ease-out}
+  .toast{background:#0B1320;color:#fff;font-size:13px;font-weight:600;padding:10px 14px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.2);animation:subir .18s ease-out}
+  .toast-err{background:#b91c1c}
+  @media(prefers-reduced-motion:reduce){.sheet-panel,.toast{animation:none}}
+  .kanban::-webkit-scrollbar,.scroll-x::-webkit-scrollbar{display:none}
+
+  /* impresión / PDF del informe mensual */
+  @media print{
+    @page{margin:14mm}
+    header,nav,#toasts,#sheet,.no-print{display:none!important}
+    body{background:#fff!important}
+    main{padding:0!important;max-width:none!important}
+    #v-flota{display:block!important}
+    .card{box-shadow:none!important;break-inside:avoid}
+  }
 </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen">
 
+<!-- PANTALLA DE CARGA: evita ver el login un instante antes de entrar a la app -->
+<div id="splash" class="fixed inset-0 z-[100] bg-[#0B1320] flex flex-col items-center justify-center gap-4">
+  <img src="LogoConecsa.jpg" alt="" class="h-20 w-20 rounded-full bg-white p-1 object-contain">
+  <div class="w-6 h-6 border-2 border-white/30 border-t-amber-400 rounded-full animate-spin"></div>
+</div>
+
 <!-- LOGIN -->
-<div id="login" class="min-h-screen flex items-center justify-center p-4">
-  <div class="bg-white p-8 rounded-xl shadow-md w-full max-w-sm">
-    <img src="LogoConecsa.jpg" alt="Conecsa" class="h-24 w-24 object-contain mx-auto mb-4">
-    <h1 class="text-xl font-bold text-center mb-6">Acceso Operativo</h1>
-    <input id="email" type="email" placeholder="Correo electrónico" class="w-full p-3 mb-3 border rounded-lg focus:outline-none focus:border-[#0B1320]">
-    <input id="password" type="password" placeholder="Contraseña" class="w-full p-3 mb-5 border rounded-lg focus:outline-none focus:border-[#0B1320]" onkeydown="if(event.key==='Enter')iniciarSesion()">
-    <button onclick="iniciarSesion()" class="w-full bg-[#0B1320] text-white p-3 rounded-lg font-bold hover:bg-slate-800">Entrar</button>
-    <p id="error-msg" class="text-red-600 text-sm text-center mt-4 hidden"></p>
+<div id="login" class="hidden min-h-screen bg-[#0B1320] flex items-center justify-center p-4">
+  <div class="w-full max-w-sm">
+    <div class="text-center mb-6">
+      <img src="LogoConecsa.jpg" alt="Conecsa" class="h-24 w-24 rounded-full bg-white p-1 object-contain mx-auto mb-4 shadow-lg">
+      <h1 class="text-white text-2xl font-bold tracking-wide">Conecsa Go</h1>
+      <p class="text-slate-300 text-sm mt-1">Acceso operativo</p>
+    </div>
+    <form onsubmit="iniciarSesion(); return false;" class="bg-white p-6 rounded-2xl shadow-xl">
+      <label class="lbl" for="email">Correo electrónico</label>
+      <input id="email" type="email" autocomplete="username" inputmode="email" placeholder="usuario@conecsa.com" class="inp mb-3 !p-3">
+      <label class="lbl" for="password">Contraseña</label>
+      <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" class="inp mb-5 !p-3">
+      <button id="btn-entrar" type="submit" class="btn btn-acc w-full !py-3 !text-base">Entrar</button>
+      <p id="error-msg" class="text-red-600 text-sm text-center mt-4 hidden"></p>
+    </form>
   </div>
 </div>
 
 <!-- APP -->
 <div id="app" class="hidden">
-  <!-- CABECERA SUPERIOR LIMPIA -->
   <header class="bg-[#0B1320] text-white px-4 py-3 flex justify-between items-center sticky top-0 z-10 shadow-sm">
-    <div class="flex items-center gap-3">
-      <img src="LogoConecsa.jpg" alt="" class="h-9 w-9 bg-white rounded-full p-0.5 object-contain">
-      <div class="leading-tight">
+    <div class="flex items-center gap-3 min-w-0">
+      <img src="LogoConecsa.jpg" alt="" class="h-9 w-9 bg-white rounded-full p-0.5 object-contain flex-none">
+      <div class="leading-tight min-w-0">
         <div class="font-bold tracking-wide">Conecsa Go</div>
-        <div id="quien" class="text-xs text-slate-300"></div>
+        <div id="quien" class="text-xs text-slate-300 truncate"></div>
       </div>
     </div>
-    <button onclick="cerrarSesion()" class="text-xs bg-slate-700/50 border border-slate-600 px-3 py-1.5 rounded-lg hover:bg-slate-600 transition">Salir</button>
+    <button onclick="cerrarSesion()" class="text-xs bg-slate-700/50 border border-slate-600 px-3 py-1.5 rounded-lg hover:bg-slate-600 transition flex-none">Salir</button>
   </header>
 
-  <!-- EL CONTENIDO AHORA TIENE PADDING INFERIOR PARA NO TAPARSE CON LA BARRA -->
-  <main class="max-w-2xl mx-auto p-4 pb-24">
-    <!-- Recursos (Formularios, Procesos y Respuestas) -->
-    <section id="v-recursos">
-      <input id="buscar" oninput="pintarRecursos()" placeholder="Buscar documento..." class="w-full p-3 mb-4 border border-slate-200 rounded-xl bg-white shadow-sm focus:outline-none focus:border-[#0B1320] focus:ring-1 focus:ring-[#0B1320]">
+  <main class="max-w-5xl mx-auto p-4 pb-28">
+    <!-- Biblioteca: Formularios / Procesos / Data -->
+    <section id="v-biblioteca" class="max-w-2xl mx-auto">
+      <div id="bib-seg" class="flex gap-2 mb-4 overflow-x-auto scroll-x"></div>
+      <input id="buscar" oninput="pintarRecursos()" placeholder="Buscar documento..." class="w-full p-3 mb-4 border border-slate-200 rounded-xl bg-white shadow-sm text-sm focus:outline-none focus:border-[#0B1320]">
       <div id="lista-recursos"></div>
     </section>
 
     <!-- Avisos -->
-    <section id="v-avisos" class="hidden">
+    <section id="v-avisos" class="hidden max-w-2xl mx-auto">
       <div id="form-aviso" class="hidden bg-blue-50/50 rounded-xl border border-blue-100 p-4 mb-5">
-        <h3 class="font-bold text-blue-800 mb-2">Publicar nuevo aviso</h3>
-        <textarea id="a-mensaje" rows="2" placeholder="Escribe el comunicado..." class="w-full p-2.5 mb-2 border border-blue-200 rounded-lg focus:outline-none focus:border-blue-500 bg-white"></textarea>
+        <h2 class="font-bold text-blue-800 mb-2">Publicar nuevo aviso</h2>
+        <textarea id="a-mensaje" rows="2" placeholder="Escribe el comunicado..." class="w-full p-2.5 mb-2 border border-blue-200 rounded-lg focus:outline-none focus:border-blue-500 bg-white text-sm"></textarea>
         <input id="a-img" type="url" placeholder="URL de imagen (opcional)" class="w-full p-2.5 mb-3 border border-blue-200 rounded-lg focus:outline-none focus:border-blue-500 bg-white text-sm">
-        <button onclick="crearAviso()" class="w-full bg-blue-600 hover:bg-blue-700 transition text-white p-2.5 rounded-lg font-bold shadow-sm">Enviar a todos</button>
+        <button onclick="lock(this, crearAviso)" class="btn w-full bg-blue-600 hover:bg-blue-700 text-white">Enviar a todos</button>
       </div>
       <div id="lista-avisos"></div>
     </section>
 
     <!-- Tareas -->
-    <section id="v-tareas" class="hidden">
+    <section id="v-tareas" class="hidden max-w-2xl mx-auto">
       <div class="flex gap-2 mb-4">
-        <button id="sub-mias" onclick="subTareas('mias')" class="sub px-4 py-1.5 rounded-full text-sm font-semibold transition">Mis tareas</button>
-        <button id="sub-dadas" onclick="subTareas('dadas')" class="sub px-4 py-1.5 rounded-full text-sm font-semibold transition">Asignadas</button>
-        <button onclick="toggleForm()" class="ml-auto bg-amber-500 text-[#0B1320] px-4 py-1.5 rounded-full text-sm font-bold shadow-sm">+ Nueva</button>
+        <button id="sub-mias" onclick="subTareas('mias')" class="sub seg">Mis tareas</button>
+        <button id="sub-dadas" onclick="subTareas('dadas')" class="sub seg">Asignadas</button>
+        <button onclick="toggleForm()" class="btn btn-acc ml-auto !rounded-full !py-1.5">+ Nueva</button>
       </div>
-
-      <div id="form-tarea" class="hidden bg-white rounded-xl border border-slate-200 p-4 mb-4 shadow-sm">
-        <input id="t-titulo" placeholder="¿Qué hay que hacer?" class="w-full p-2.5 mb-2 border rounded-lg bg-slate-50 focus:bg-white focus:outline-none focus:border-[#0B1320]">
-        <textarea id="t-desc" rows="2" placeholder="Detalle adicional (opcional)" class="w-full p-2.5 mb-2 border rounded-lg bg-slate-50 focus:bg-white focus:outline-none focus:border-[#0B1320]"></textarea>
+      <div id="form-tarea" class="hidden card p-4 mb-4">
+        <input id="t-titulo" placeholder="¿Qué hay que hacer?" class="inp mb-2">
+        <textarea id="t-desc" rows="2" placeholder="Detalle adicional (opcional)" class="inp mb-2"></textarea>
         <div class="flex gap-2 mb-3">
-          <select id="t-prio" class="flex-1 p-2.5 border rounded-lg bg-slate-50"><option value="baja">Prioridad baja</option><option value="media" selected>Prioridad media</option><option value="alta">Prioridad alta</option></select>
-          <input id="t-fecha" type="date" class="flex-1 p-2.5 border rounded-lg bg-slate-50">
+          <select id="t-prio" class="inp flex-1"><option value="baja">Prioridad baja</option><option value="media" selected>Prioridad media</option><option value="alta">Prioridad alta</option></select>
+          <input id="t-fecha" type="date" class="inp flex-1">
         </div>
         <div id="bloque-asignar">
           <div class="text-sm font-semibold mb-2 text-slate-700">Asignar a:</div>
@@ -92,253 +174,60 @@
           <div id="lista-usuarios" class="max-h-40 overflow-y-auto border rounded-lg divide-y bg-slate-50"></div>
         </div>
         <p id="t-hint" class="text-xs text-slate-500 mt-2 hidden text-center bg-slate-100 p-2 rounded-lg">Esta tarea será exclusivamente para ti.</p>
-        <button onclick="crearTarea()" class="w-full mt-3 bg-[#0B1320] text-white p-3 rounded-lg font-bold shadow-md">Crear tarea</button>
+        <button onclick="lock(this, crearTarea)" class="btn btn-pri w-full mt-3 !py-3">Crear tarea</button>
       </div>
-
       <div id="lista-tareas"></div>
     </section>
+
+    <!-- Mejora continua y Flota se dibujan desde mejora.js / flota.js -->
+    <section id="v-mejora" class="hidden"></section>
+    <section id="v-flota" class="hidden"></section>
   </main>
 
-  <!-- NUEVA NAVEGACIÓN INFERIOR ESTILO APP -->
   <nav class="bg-white border-t border-slate-200 flex max-w-2xl mx-auto fixed bottom-0 w-full z-50 left-1/2 -translate-x-1/2 nav-bottom shadow-[0_-4px_20px_rgba(0,0,0,0.04)]">
-    <button data-tab="formulario" class="tab flex-1 pt-3 pb-2 flex flex-col items-center gap-1 font-medium text-[10px] sm:text-xs relative">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
-      <span>Forms</span>
+    <button data-tab="biblioteca" class="tab flex-1 pt-3 pb-2 flex flex-col items-center gap-1 font-semibold text-[11px]">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+      <span>Biblioteca</span>
     </button>
-    <button data-tab="manual" class="tab flex-1 pt-3 pb-2 flex flex-col items-center gap-1 font-medium text-[10px] sm:text-xs relative">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" /></svg>
-      <span>Procesos</span>
-    </button>
-    <button id="tab-respuestas" data-tab="respuesta" class="tab hidden flex-1 pt-3 pb-2 flex flex-col items-center gap-1 font-medium text-[10px] sm:text-xs relative">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg>
-      <span>Data</span>
-    </button>
-    <button data-tab="avisos" class="tab flex-1 pt-3 pb-2 flex flex-col items-center gap-1 font-medium text-[10px] sm:text-xs relative">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" /></svg>
+    <button data-tab="avisos" class="tab flex-1 pt-3 pb-2 flex flex-col items-center gap-1 font-semibold text-[11px]">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"/></svg>
       <span>Avisos</span>
     </button>
-    <button data-tab="tareas" class="tab flex-1 pt-3 pb-2 flex flex-col items-center gap-1 font-medium text-[10px] sm:text-xs relative">
-      <span id="badge" class="hidden absolute top-1.5 right-3 sm:right-1/4 translate-x-1 text-[9px] bg-red-500 text-white font-bold rounded-full h-4 w-4 flex items-center justify-center shadow-sm"></span>
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" /></svg>
+    <button data-tab="tareas" class="tab flex-1 pt-3 pb-2 flex flex-col items-center gap-1 font-semibold text-[11px] relative">
+      <span id="badge" class="hidden absolute top-1.5 right-3 sm:right-1/4 text-[10px] bg-red-600 text-white font-bold rounded-full h-4 min-w-4 px-1 flex items-center justify-center shadow-sm"></span>
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z"/></svg>
       <span>Tareas</span>
     </button>
+    <button data-tab="mejora" class="tab flex-1 pt-3 pb-2 flex flex-col items-center gap-1 font-semibold text-[11px] relative">
+      <span id="badge-mejora" class="hidden absolute top-1.5 right-3 sm:right-1/4 text-[10px] bg-red-600 text-white font-bold rounded-full h-4 min-w-4 px-1 flex items-center justify-center shadow-sm"></span>
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z"/></svg>
+      <span>Mejora</span>
+    </button>
+    <button id="tab-flota" data-tab="flota" class="tab hidden flex-1 pt-3 pb-2 flex flex-col items-center gap-1 font-semibold text-[11px]">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.125-.504 1.125-1.125v-4.875c0-.42-.176-.826-.489-1.119l-3.2-3.2a1.125 1.125 0 00-.795-.33H15.75M2.25 14.25V6.375c0-.621.504-1.125 1.125-1.125h9.75c.621 0 1.125.504 1.125 1.125V14.25m-17.25 0h17.25"/></svg>
+      <span>Flota</span>
+    </button>
   </nav>
+
+  <!-- Hoja inferior reutilizable para formularios y detalles -->
+  <div id="sheet" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
+    <div class="absolute inset-0 bg-black/50" onclick="cerrarSheet()"></div>
+    <div class="sheet-panel relative bg-white w-full max-w-lg max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl shadow-2xl">
+      <div class="sticky top-0 bg-white border-b border-slate-100 px-4 py-3 flex items-center justify-between z-10">
+        <h2 id="sheet-titulo" class="font-bold text-slate-800"></h2>
+        <button onclick="cerrarSheet()" aria-label="Cerrar" class="text-slate-500 hover:text-slate-700 text-2xl leading-none px-1">&times;</button>
+      </div>
+      <div id="sheet-body" class="p-4 pb-6"></div>
+    </div>
+  </div>
 </div>
 
-<script>
-// --- CONFIGURACIÓN SUPABASE ---
-const cliente = supabase.createClient(
-  'https://vwhkupadhcfqbquayqzz.supabase.co', 
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3aGt1cGFkaGNmcWJxdWF5cXp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3MzM5MTMsImV4cCI6MjEwNjMwOTkxM30.tFwvSpDc_T4HF5ETVTrLjFAZDRLhzkFI61bHp-9Xy44'
-);
+<div id="toasts" class="fixed top-16 left-0 right-0 z-[120] flex flex-col items-center gap-2 pointer-events-none px-4"></div>
 
-const $ = id => document.getElementById(id);
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const safeUrl = u => /^https?:\/\//i.test(u) ? u : '#';
-const formFecha = f => f ? f.split('-').reverse().join('/') : '';
-
-// Roles superiores que sí pueden asignar a otros y ver "Data"
-const PUEDE_ASIGNAR = ['admin', 'logistica', 'supervisor'];
-let yo = null, recursos = [], usuarios = [], tareas = [], avisos = [], tab = 'formulario', sub = 'mias';
-
-// --- SESIÓN ---
-async function iniciarSesion() {
-  const { error } = await cliente.auth.signInWithPassword({ email: $('email').value, password:$('password').value });
-  if (error) { $('error-msg').textContent = 'Credenciales incorrectas';$('error-msg').classList.remove('hidden'); }
-  else { $('error-msg').classList.add('hidden'); iniciarApp(); }
-}
-async function cerrarSesion() {
-  await cliente.auth.signOut();
-  $('app').classList.add('hidden');$('login').classList.remove('hidden');
-  $('email').value =$('password').value = '';
-}
-async function iniciarApp() {
-  const { data: { user } } = await cliente.auth.getUser();
-  const { data: p } = await cliente.from('perfiles').select('*').eq('id', user.id).single();
-  if (!p) return cerrarSesion();
-  yo = p;
-  
-  $('quien').textContent = `${p.nombre} · ${p.rol} | ${p.sucursal || 'Central'}`;
-  $('login').classList.add('hidden');$('app').classList.remove('hidden');
-  
-  // Condicionales de vista según rol
-  const esSuperior = PUEDE_ASIGNAR.includes(p.rol);
-  $('sub-dadas').classList.toggle('hidden', !esSuperior);$('tab-respuestas').classList.toggle('hidden', !esSuperior);
-  if(p.rol === 'logistica' || p.rol === 'admin') $('form-aviso').classList.remove('hidden');
-
-  const [r, u] = await Promise.all([
-    cliente.from('enlaces').select('*').order('categoria').order('titulo'),
-    cliente.from('perfiles').select('id,nombre,rol').order('nombre')
-  ]);
-  recursos = r.data || []; usuarios = u.data || [];
-  await cargarTareas(); await cargarAvisos();
-  irTab('formulario');
-}
-
-// --- NUEVA NAVEGACIÓN (Actualiza el color de los íconos) ---
-document.querySelectorAll('.tab').forEach(b => b.onclick = () => irTab(b.dataset.tab));
-function irTab(t) {
-  tab = t;
-  document.querySelectorAll('.tab').forEach(b => {
-    b.classList.remove('tab-on', 'tab-off');
-    b.classList.add(b.dataset.tab === t ? 'tab-on' : 'tab-off');
-  });
-  
-  $('v-recursos').classList.toggle('hidden', !['formulario', 'manual', 'respuesta'].includes(t));
-  $('v-tareas').classList.toggle('hidden', t !== 'tareas');$('v-avisos').classList.toggle('hidden', t !== 'avisos');
-  
-  if (t === 'tareas') subTareas(sub); 
-  else if (t === 'avisos') pintarAvisos();
-  else { $('buscar').value = ''; pintarRecursos(); }
-}
-
-// --- RECURSOS ---
-function pintarRecursos() {
-  const q = $('buscar').value.toLowerCase();
-  const items = recursos.filter(r => (r.tipo || 'formulario') === tab && (r.titulo + ' ' + (r.descripcion || '')).toLowerCase().includes(q));
-  
-  if (!items.length) { 
-    const etiquetas = { formulario: 'formularios', manual: 'procesos', respuesta: 'bases de datos' };
-    $('lista-recursos').innerHTML = `<p class="text-center text-slate-500 py-10">No hay ${etiquetas[tab] || 'elementos'} disponibles.</p>`; 
-    return; 
-  }
-
-  const grupos = {};
-  items.forEach(r => {
-    let cat = (r.categoria || 'General').trim();
-    if (!cat) cat = 'General';
-    cat = cat.charAt(0).toUpperCase() + cat.slice(1);
-    (grupos[cat] ||= []).push(r);
-  });
-
-  const textoAccion = tab === 'manual' ? 'Abrir documento' : tab === 'respuesta' ? 'Ver respuestas 📊' : 'Llenar formulario';
-
-  $('lista-recursos').innerHTML = Object.entries(grupos).map(([cat, list]) => `
-    <div class="mb-6">
-      <h3 class="font-bold text-slate-400 text-xs uppercase tracking-wider mb-3 ml-1">${esc(cat)}</h3>
-      ${list.map(r => `
-        <a href="${esc(safeUrl(r.url))}" target="_blank" rel="noopener" class="block bg-white rounded-xl border border-slate-200 border-l-4 ${tab === 'respuesta' ? 'border-l-emerald-500' : 'border-l-[#0B1320]'} p-4 mb-3 hover:shadow-md transition">
-          <div class="flex justify-between items-start gap-2">
-            <span class="font-bold text-slate-800 text-[15px]">${esc(r.titulo)}</span>
-            <span class="text-xs font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full whitespace-nowrap">${r.version ? 'v' + esc(r.version) : ''}</span>
-          </div>
-          ${r.descripcion ? `<p class="text-sm text-slate-500 mt-1.5 leading-snug">${esc(r.descripcion)}</p>` : ''}
-          <span class="inline-block mt-3 text-xs font-bold ${tab === 'respuesta' ? 'text-emerald-600' : 'text-amber-600'}">${textoAccion}</span>
-        </a>`).join('')}
-    </div>`).join('');
-}
-
-// --- AVISOS ---
-async function cargarAvisos() {
-  const { data } = await cliente.from('avisos').select('*, autor:perfiles(nombre, sucursal)').order('fecha_creacion', { ascending: false });
-  avisos = data || [];
-}
-function pintarAvisos() {
-    if (!avisos.length) { $('lista-avisos').innerHTML = '<p class="text-center text-slate-500 py-10">Sin comunicados recientes.</p>'; return; }
-    $('lista-avisos').innerHTML = avisos.map(a => {
-        const fecha = new Date(a.fecha_creacion).toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute:'2-digit' });
-        const imgHtml = a.imagen_url ? `<img src="${esc(a.imagen_url)}" class="mt-3 rounded-lg max-h-64 object-cover w-full border border-slate-200">` : '';
-        const delBtn = ['logistica', 'admin'].includes(yo.rol) ? `<button onclick="borrarAviso(${a.id})" class="text-red-500 text-xs font-bold mt-3 hover:underline">🗑 Eliminar aviso</button>` : '';
-        
-        return `
-        <div class="bg-white rounded-xl border border-slate-200 border-l-4 border-l-blue-500 p-4 mb-4 shadow-sm">
-            <div class="flex justify-between items-start mb-2">
-                <div>
-                  <span class="font-bold text-blue-900 text-sm">${esc(a.autor?.nombre || 'Administración')}</span>
-                  <span class="text-[10px] uppercase font-bold text-slate-400 ml-1 bg-slate-100 px-1.5 py-0.5 rounded">${esc(a.autor?.sucursal || 'Central')}</span>
-                </div>
-                <span class="text-[10px] font-semibold text-slate-400 whitespace-nowrap ml-2">${fecha}</span>
-            </div>
-            <p class="text-slate-700 text-sm leading-relaxed whitespace-pre-wrap">${esc(a.mensaje)}</p>
-            ${imgHtml}
-            ${delBtn}
-        </div>`;
-    }).join('');
-}
-async function crearAviso() {
-    const msj = $('a-mensaje').value.trim();
-    const img = $('a-img').value.trim();
-    if (!msj && !img) return;
-    const { error } = await cliente.from('avisos').insert({ mensaje: msj, imagen_url: img || null });
-    if (error) return alert('Error al publicar: ' + error.message);
-    $('a-mensaje').value = '';$('a-img').value = '';
-    await cargarAvisos(); pintarAvisos();
-}
-async function borrarAviso(id) {
-    if (!confirm('¿Eliminar este aviso definitivamente?')) return;
-    await cliente.from('avisos').delete().eq('id', id);
-    await cargarAvisos(); pintarAvisos();
-}
-
-// --- TAREAS ---
-async function cargarTareas() {
-  const { data } = await cliente.from('tareas').select('*, creador:perfiles!creado_por(nombre), tarea_asignados(usuario_id, estado, perfil:perfiles(nombre))').order('created_at', { ascending: false });
-  tareas = data || [];
-  const pend = tareas.filter(t => t.tarea_asignados.some(a => a.usuario_id === yo.id && a.estado !== 'hecha')).length;
-  $('badge').textContent = pend; $('badge').classList.toggle('hidden', !pend);
-}
-function subTareas(s) {
-  sub = s;
-  document.querySelectorAll('.sub').forEach(b => b.className = 'sub px-4 py-1.5 rounded-full text-sm font-semibold transition ' + (b.id === 'sub-' + s ? 'bg-[#0B1320] text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-50'));
-  pintarTareas();
-}
-function pintarTareas() {
-  const hoy = new Date().toISOString().slice(0, 10);
-  const lista = sub === 'mias' ? tareas.filter(t => t.tarea_asignados.some(a => a.usuario_id === yo.id)) : tareas.filter(t => t.creado_por === yo.id && t.tarea_asignados.some(a => a.usuario_id !== yo.id));
-  if (!lista.length) { $('lista-tareas').innerHTML = '<p class="text-center text-slate-500 py-10">No hay tareas aquí.</p>'; return; }
-  const prioColor = { alta: 'border-l-red-500', media: 'border-l-amber-500', baja: 'border-l-slate-300' };
-  $('lista-tareas').innerHTML = lista.map(t => {
-    const mia = t.tarea_asignados.find(a => a.usuario_id === yo.id);
-    const vencida = t.fecha_limite && t.fecha_limite < hoy && !t.tarea_asignados.every(a => a.estado === 'hecha');
-    return `<div class="bg-white rounded-xl border border-slate-200 border-l-4 ${prioColor[t.prioridad] || ''} p-4 mb-3 shadow-sm">
-      <div class="font-bold text-slate-800">${esc(t.titulo)}</div>
-      ${t.descripcion ? `<p class="text-sm text-slate-600 mt-1 leading-snug">${esc(t.descripcion)}</p>` : ''}
-      <div class="text-xs mt-2.5 font-medium ${vencida ? 'text-red-500' : 'text-slate-400'}">
-        ${t.fecha_limite ? (vencida ? '⚠️️ Vencida: ' : '📅 Para el ') + formFecha(t.fecha_limite) + ' · ' : ''}✍️ De ${esc(t.creador?.nombre || '—')}
-      </div>
-      ${sub === 'mias' && mia ? `
-        <select onchange="cambiarEstado(${t.id}, this.value)" class="mt-3 text-xs font-bold p-2 rounded-lg border outline-none est-${mia.estado}">
-          ${['pendiente', 'en_curso', 'hecha'].map(e => `<option value="${e}" ${e === mia.estado ? 'selected' : ''}>${e.replace('_', ' ').toUpperCase()}</option>`).join('')}
-        </select>` : `
-        <div class="flex flex-wrap gap-1.5 mt-3">${t.tarea_asignados.map(a => `<span class="text-[10px] font-bold px-2 py-1 rounded-full est-${a.estado}">${esc(a.perfil?.nombre || '—')}: ${a.estado.replace('_', ' ').toUpperCase()}</span>`).join('')}</div>
-        <button onclick="borrarTarea(${t.id})" class="text-xs font-bold text-red-500 mt-3 hover:underline">Eliminar tarea</button>`}
-    </div>`;
-  }).join('');
-}
-async function cambiarEstado(id, estado) {
-  await cliente.from('tarea_asignados').update({ estado, actualizado: new Date().toISOString() }).eq('tarea_id', id).eq('usuario_id', yo.id);
-  await cargarTareas(); pintarTareas();
-}
-async function borrarTarea(id) {
-  if (!confirm('¿Eliminar esta tarea de todos los involucrados?')) return;
-  await cliente.from('tareas').delete().eq('id', id);
-  await cargarTareas(); pintarTareas();
-}
-function toggleForm() {
-  const f = $('form-tarea'); f.classList.toggle('hidden');
-  if (f.classList.contains('hidden')) return;
-  const puede = PUEDE_ASIGNAR.includes(yo.rol);
-  $('bloque-asignar').classList.toggle('hidden', !puede);$('t-hint').classList.toggle('hidden', puede);
-  const roles = [...new Set(usuarios.map(u => u.rol))];
-  $('chips-rol').innerHTML = roles.map(r => `<button type="button" onclick="marcarRol('${esc(r)}')" class="text-[10px] font-bold px-2.5 py-1 rounded-full border border-slate-200 bg-white text-slate-500 hover:bg-amber-100 hover:border-amber-300 hover:text-amber-800 transition uppercase tracking-wide">Rol: ${esc(r)}</button>`).join('');
-  $('lista-usuarios').innerHTML = usuarios.filter(u => u.id !== yo.id).map(u => `<label class="flex items-center gap-3 p-2.5 text-sm hover:bg-white cursor-pointer"><input type="checkbox" class="chk-u w-4 h-4 accent-[#0B1320]" value="${u.id}" data-rol="${esc(u.rol)}"> <div><span class="font-medium">${esc(u.nombre)}</span> <span class="text-xs font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded ml-1">${esc(u.rol)}</span></div></label>`).join('');
-}
-function marcarRol(rol) { document.querySelectorAll('.chk-u').forEach(c => { if (c.dataset.rol === rol) c.checked = true; }); }
-async function crearTarea() {
-  const titulo = $('t-titulo').value.trim();
-  if (!titulo) return alert('Escribe un título para la tarea.');
-  const { data: t, error } = await cliente.from('tareas').insert({ titulo, descripcion: $('t-desc').value.trim() || null, prioridad: $('t-prio').value, fecha_limite:$('t-fecha').value || null }).select().single();
-  if (error) return alert('No se pudo crear: ' + error.message);
-  const ids = PUEDE_ASIGNAR.includes(yo.rol) ? [...document.querySelectorAll('.chk-u:checked')].map(c => c.value) : [];
-  const filas = [...new Set([yo.id, ...ids])].map(u => ({ tarea_id: t.id, usuario_id: u }));
-  const destino = ids.length ? ids.map(u => ({ tarea_id: t.id, usuario_id: u })) : filas;
-  await cliente.from('tarea_asignados').insert(destino);
-  ['t-titulo', 't-desc', 't-fecha'].forEach(i => $(i).value = '');$('form-tarea').classList.add('hidden');
-  await cargarTareas(); subTareas(ids.length ? 'dadas' : 'mias');
-}
-
-// --- ARRANQUE ---
-cliente.auth.getSession().then(({ data: { session } }) => { if (session) iniciarApp(); });
-</script>
+<script src="app.js"></script>
+<script src="mejora.js"></script>
+<script src="flota.js"></script>
+<script src="informe.js"></script>
+<script>arrancar();</script>
 </body>
 </html>
