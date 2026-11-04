@@ -98,6 +98,18 @@ const num = id => { const x = val(id); return x === '' ? null : Number(x); };
 const seg = (items, actual, fn) => items.map(([k, l]) =>
   `<button onclick="${fn}('${k}')" class="seg ${k === actual ? 'seg-on' : 'seg-off'}">${esc(l)}</button>`).join('');
 
+// Hilo de comentarios (Tareas y Mejora). extra(c) permite añadir controles debajo de un comentario.
+const TIPO_COM = { comentario: ['Comentario', 'b-gris'], evidencia: ['Evidencia', 'b-verde'], aplazo_solicitud: ['Solicitud de aplazo', 'b-ambar'], aplazo_resuelto: ['Aplazo', 'b-ambar'] };
+const htmlHilo = (items, extra = () => '') => items.length ? items.map(c => `<div class="py-2.5 border-b border-slate-100 last:border-0">
+    <div class="flex items-center gap-2 flex-wrap"><b class="text-sm text-slate-800">${esc(c.autor?.nombre || '—')}</b><span class="chip ${TIPO_COM[c.tipo][1]}">${TIPO_COM[c.tipo][0]}</span><span class="text-[11px] text-slate-500 ml-auto">${fmtFH(c.created_at)}</span></div>
+    <p class="text-sm text-slate-700 mt-1 whitespace-pre-wrap leading-snug">${esc(c.texto)}</p>${extra(c)}</div>`).join('')
+  : '<p class="text-sm text-slate-500 py-4 text-center">Aún no hay comentarios.</p>';
+const porFecha = (a, b) => a.created_at.localeCompare(b.created_at);
+// Lista de usuarios con casillas. clase: clase CSS de los checkbox; marcados: Set de ids
+const checksUsuarios = (clase, lista, marcados = new Set()) => `<div class="max-h-44 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100 bg-slate-50 mb-3">${lista.length ? lista.map(u =>
+  `<label class="flex items-center gap-3 p-2.5 text-sm cursor-pointer"><input type="checkbox" class="${clase} w-4 h-4 accent-[#0B1320]" value="${u.id}" ${marcados.has(u.id) ? 'checked' : ''}> <span class="font-medium">${esc(u.nombre)}</span> <span class="text-xs font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">${esc(puestoDe(u))}</span></label>`).join('')
+  : '<p class="text-xs text-slate-500 p-3">No hay personas para elegir.</p>'}</div>`;
+
 // --- SESIÓN ---
 function errLogin(msg) { $('error-msg').textContent = msg; $('error-msg').classList.remove('hidden'); }
 function mostrarLogin(msg) {
@@ -306,7 +318,7 @@ async function borrarAviso(id) {
 
 // --- TAREAS ---
 async function cargarTareas() {
-  const { data } = await cliente.from('tareas').select('*, creador:perfiles!creado_por(nombre), tarea_asignados(usuario_id, estado, perfil:perfiles(nombre))').order('created_at', { ascending: false });
+  const { data } = await cliente.from('tareas').select('*, creador:perfiles!creado_por(nombre), tarea_asignados(usuario_id, estado, perfil:perfiles(nombre)), tarea_comentarios(id, tipo, texto, created_at, autor:perfiles!autor_id(nombre))').order('created_at', { ascending: false });
   tareas = data || [];
   const pend = tareas.filter(t => t.tarea_asignados.some(a => a.usuario_id === yo.id && a.estado !== 'hecha')).length;
   $('badge').textContent = pend; $('badge').classList.toggle('hidden', !pend);
@@ -339,12 +351,28 @@ function pintarTareas() {
         </select>` : `
         <div class="flex flex-wrap gap-1.5 mt-3">${t.tarea_asignados.map(a => `<span class="text-[10px] font-bold px-2 py-1 rounded-full est-${a.estado}">${esc(a.perfil?.nombre || '—')}: ${a.estado.replace('_', ' ').toUpperCase()}</span>`).join('')}</div>
         <button onclick="borrarTarea(${t.id})" class="text-xs font-bold text-red-600 mt-3 hover:underline">Eliminar tarea</button>`}
+      <button onclick="abrirHiloTarea(${t.id})" class="btn btn-sec btn-sm mt-3">${ico('chat', 'w-4 h-4')} Comentarios${(t.tarea_comentarios || []).length ? ` (${t.tarea_comentarios.length})` : ''}</button>
     </div>`;
   }).join('');
+}
+function abrirHiloTarea(id) {
+  const t = tareas.find(x => x.id === id); if (!t) return;
+  abrirSheet('Comentarios · ' + t.titulo, `
+    <div class="max-h-[45vh] overflow-y-auto mb-3">${htmlHilo([...(t.tarea_comentarios || [])].sort(porFecha))}</div>
+    ${lista('tc-tipo', 'Tipo', [['comentario', 'Comentario'], ['evidencia', 'Evidencia (dónde quedó el trabajo)']])}
+    ${area('tc-texto', 'Escribe aquí', '', 3)}
+    <button onclick="lock(this,()=>enviarComentarioTarea(${id}))" class="btn btn-pri w-full !py-3">Enviar</button>`);
+}
+async function enviarComentarioTarea(id) {
+  const texto = val('tc-texto');
+  if (!texto) return toast('Escribe el comentario.', true);
+  if (!await db(cliente.from('tarea_comentarios').insert({ tarea_id: id, tipo: val('tc-tipo'), texto }))) return;
+  await cargarTareas(); pintarTareas(); abrirHiloTarea(id);
 }
 async function cambiarEstado(id, estado) {
   await db(cliente.from('tarea_asignados').update({ estado, actualizado: new Date().toISOString() }).eq('tarea_id', id).eq('usuario_id', yo.id));
   await cargarTareas(); pintarTareas();
+  if (estado === 'hecha') toast('Deja en Comentarios dónde quedó la evidencia');
 }
 async function borrarTarea(id) {
   if (!confirm('¿Eliminar esta tarea de todos los involucrados?')) return;
