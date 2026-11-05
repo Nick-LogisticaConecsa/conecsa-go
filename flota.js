@@ -53,8 +53,8 @@ function pintarFlota() {
   const el = $('v-flota');
   if (flotaError) {
     el.innerHTML = `<div class="max-w-2xl mx-auto card p-5 text-sm text-slate-600">
-      <p class="font-bold text-slate-800 mb-1">Módulo aún no disponible</p>
-      <p>Si es la primera vez, ejecuta <code class="bg-slate-100 px-1 rounded">supabase_setup.sql</code> en Supabase.</p>
+      <p class="font-bold text-slate-800 mb-1">No se pudo cargar Flota</p>
+      <p>Revisa tu conexión e intenta de nuevo. Si sigue igual, avisa al administrador.</p>
       <p class="text-xs text-red-500 mt-2">${esc(flotaError)}</p></div>`;
     return;
   }

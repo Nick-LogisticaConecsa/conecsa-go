@@ -3,11 +3,11 @@
 // Crean proyectos admin, jefatura y quien tenga permiso de edición del módulo.
 // Cada proyecto solo lo ven sus participantes (y el admin). Gestiona el proyecto quien lo
 // creó, su responsable o el admin. Cada responsable mueve el estado de SUS tareas
-// (Por hacer → En proceso → Hecho); los involucrados dejan comentarios y evidencia,
+// (Por hacer → En curso → Hecha); los involucrados dejan comentarios y evidencia,
 // y el responsable de la tarea puede solicitar un aplazo que el responsable/creador del proyecto resuelve.
 // =====================================================================
 const FASES = [['definir', 'D', 'Definir'], ['medir', 'M', 'Medir'], ['analizar', 'A', 'Analizar'], ['mejorar', 'M', 'Mejorar'], ['controlar', 'C', 'Controlar']];
-const COLS = [['pendiente', 'Por hacer', 'bg-slate-100'], ['en_proceso', 'En proceso', 'bg-blue-50'], ['hecha', 'Hecho', 'bg-emerald-50']];
+const COLS = [['pendiente', 'Por hacer', 'bg-slate-100'], ['en_proceso', 'En curso', 'bg-blue-50'], ['hecha', 'Hecha', 'bg-emerald-50']];
 const PRIO = { alta: 'b-rojo', media: 'b-ambar', baja: 'b-gris' };
 
 // Guía en lenguaje simple de cada fase (qué se hace, qué hay que revisar y qué se espera al final)
@@ -48,7 +48,7 @@ const GUIA = {
     herramientas: ['Plan de control', 'Procedimiento estándar', 'Tablero de indicadores', 'Lecciones aprendidas']
   }
 };
-let guiaAbierta = true;
+let guiaAbierta = true, pTab = 'resumen', pTabDe = null;      // pestaña abierta dentro del detalle del proyecto
 
 let proyectos = [], ptareas = [], mejoraLista = false, mejoraError = '';
 let mjVista = 'proyectos', proyId = null, mjFiltro = 'activo';
@@ -74,39 +74,42 @@ async function cargarMejora() {
   mejoraLista = true;
   actualizarBadgeMejora();
 }
-// Pendientes propios + solicitudes de aplazo por resolver
+// Pestaña Mejora: lo que espera una respuesta (aplazos por resolver e ideas nuevas). Mis tareas de proyecto cuentan en la pestaña Tareas.
 function actualizarBadgeMejora() {
-  const n = ptareas.filter(t => t.asignado_a === yo.id && t.estado !== 'hecha').length + solicitudesPorResolver().length
-    + (puedeRevisarIdeas() ? ideas.filter(x => x.estado === 'nueva').length : 0);
+  const n = solicitudesPorResolver().length + (puedeRevisarIdeas() ? ideas.filter(x => x.estado === 'nueva').length : 0);
   $('badge-mejora').textContent = n; $('badge-mejora').classList.toggle('hidden', !n);
+  pintarBadgeTareas();
 }
 async function precargarMejora() { await cargarMejora(); }
 async function abrirMejora() {
   if (!mejoraLista) await cargarMejora();
   pintarMejora();
 }
-async function refrescarMejora() { await cargarMejora(); pintarMejora(); }
+async function refrescarMejora() {
+  await cargarMejora(); pintarMejora();
+  if (tab === 'tareas') pintarTareas();           // las tareas de proyecto también se ven en la pestaña Tareas
+}
+// Abre un proyecto desde cualquier pestaña
+function irAProyecto(id) { proyId = id; mjVista = 'proyectos'; irTab('mejora'); }
 
 function pintarMejora() {
   const el = $('v-mejora');
   if (mejoraError) {
     el.innerHTML = `<div class="max-w-2xl mx-auto card p-5 text-sm text-slate-600">
-      <p class="font-bold text-slate-800 mb-1">Módulo aún no disponible</p>
-      <p>No se pudieron leer los proyectos. Si es la primera vez, ejecuta <code class="bg-slate-100 px-1 rounded">supabase_setup.sql</code> en Supabase.</p>
+      <p class="font-bold text-slate-800 mb-1">No se pudo cargar Mejora</p>
+      <p>Revisa tu conexión e intenta de nuevo. Si sigue igual, avisa al administrador.</p>
       <p class="text-xs text-red-500 mt-2">${esc(mejoraError)}</p></div>`;
     return;
   }
   if (proyId && proyectos.some(p => p.id === proyId)) return pintarProyecto(el);
   proyId = null;
 
-  const mias = ptareas.filter(t => t.asignado_a === yo.id && t.estado !== 'hecha').length;
   const cab = `<div class="flex gap-2 mb-4 items-center overflow-x-auto scroll-x">
-      <button onclick="mjVista='proyectos';pintarMejora()" class="seg ${mjVista === 'proyectos' ? 'seg-on' : 'seg-off'}">Proyectos</button>
-      <button onclick="mjVista='mias';pintarMejora()" class="seg ${mjVista === 'mias' ? 'seg-on' : 'seg-off'}">Mis tareas${mias ? ` (${mias})` : ''}</button>
+      <button onclick="mjVista='proyectos';pintarMejora()" class="seg ${mjVista !== 'ideas' ? 'seg-on' : 'seg-off'}">Proyectos</button>
       <button onclick="mjVista='ideas';pintarMejora()" class="seg ${mjVista === 'ideas' ? 'seg-on' : 'seg-off'}">Ideas</button>
       ${puedeCrearProyecto() ? `<button onclick="formProyecto()" class="btn btn-acc ml-auto flex-none whitespace-nowrap !rounded-full !py-1.5">+ Proyecto</button>` : ''}
     </div>`;
-  el.innerHTML = `<div class="max-w-2xl mx-auto">${cab}${htmlAlertaAplazos()}${mjVista === 'mias' ? htmlMisTareas() : mjVista === 'ideas' ? htmlIdeas() : htmlProyectos()}</div>`;
+  el.innerHTML = `<div class="max-w-2xl mx-auto">${cab}${htmlAlertaAplazos()}${mjVista === 'ideas' ? htmlIdeas() : htmlProyectos()}</div>`;
 }
 
 // Alerta para quien gestiona el proyecto: el responsable de una tarea pidió aplazarla
@@ -160,10 +163,10 @@ function htmlProyectos() {
   }).join('');
 }
 
-// --- Mis tareas (todas las de proyectos, para el usuario) ---
+// --- Mis tareas de proyectos (se muestran en la pestaña Tareas → "De proyectos") ---
 function htmlMisTareas() {
   const mias = ptareas.filter(participaTarea);
-  if (!mias.length) return '<p class="vacio">No tienes tareas de mejora asignadas.</p>';
+  if (!mias.length) return '<p class="vacio">No tienes tareas en proyectos de mejora.</p>';
   const orden = { en_proceso: 0, pendiente: 1, hecha: 2 };
   return [...mias].sort((a, b) => orden[a.estado] - orden[b.estado] || (a.fecha_limite || '9').localeCompare(b.fecha_limite || '9'))
     .map(t => cardTarea(t, true)).join('');
@@ -176,6 +179,7 @@ function volverProyectos() { proyId = null; pintarMejora(); }
 function pintarProyecto(el) {
   const p = proyectos.find(x => x.id === proyId), pr = progreso(p.id), av = avanceMeta(p), g = gestionaProyecto(p);
   const ts = ptareas.filter(t => t.proyecto_id === p.id);
+  if (pTabDe !== p.id) { pTab = 'resumen'; pTabDe = p.id; }          // al abrir otro proyecto se empieza por el Resumen
   const estados = { activo: 'b-verde', pausado: 'b-ambar', cerrado: 'b-gris' };
   el.innerHTML = `
   <button onclick="volverProyectos()" class="text-sm font-semibold text-slate-500 hover:text-slate-800 mb-3">← Proyectos</button>
@@ -191,10 +195,38 @@ function pintarProyecto(el) {
       ${p.fecha_inicio ? `<span>Inicio ${formFecha(p.fecha_inicio)}</span>` : ''}
       ${p.fecha_meta ? `<span>${ico('flag')} Meta ${formFecha(p.fecha_meta)}</span>` : ''}
     </div>
+    <div class="mt-4"><div class="seccion mb-2">Fase DMAIC · ${faseNombre(p.fase)}</div>${stepper(p.fase, p.id, g)}</div>
+    <div class="mt-4 flex justify-between text-[11px] font-semibold text-slate-500 mb-1"><span>${pr.hechas} de ${pr.total} tareas terminadas</span><span>${pr.pct}%</span></div>
+    <div class="h-2 rounded-full bg-slate-100 overflow-hidden"><div class="h-full bg-emerald-500" style="width:${pr.pct}%"></div></div>
+    ${g ? `<div class="flex flex-wrap gap-2 mt-4">
+      <button onclick="formProyecto(${p.id})" class="btn btn-sec">Editar proyecto</button>
+      <button onclick="formPTarea(${p.id})" class="btn btn-acc">+ Tarea</button>
+      ${p.estado !== 'cerrado' ? `<button onclick="formCierre(${p.id})" class="btn btn-pri">Cerrar proyecto</button>` : ''}
+      <button onclick="borrarProyecto(${p.id})" class="btn btn-del ml-auto">Eliminar</button></div>` : ''}
+  </div>
+  ${htmlCierre(p, g)}
+  <div class="flex gap-2 mb-4 overflow-x-auto scroll-x">${[['resumen', 'Resumen'], ['tareas', `Tareas (${pr.total})`], ['analisis', `Causas y soluciones (${(p.causas || []).length + (p.soluciones || []).length})`]].map(([k, n]) =>
+    `<button onclick="pTab='${k}';pintarMejora()" class="seg ${pTab === k ? 'seg-on' : 'seg-off'}">${n}</button>`).join('')}</div>
+  ${pTab === 'tareas' ? htmlTablero(ts) : pTab === 'analisis' ? htmlCausasSoluciones(p) : htmlResumen(p, g, av) + htmlGuiaFase(p)}`;
+}
+
+// Pestaña "Tareas" del proyecto: tablero Por hacer / En curso / Hecha
+function htmlTablero(ts) {
+  return `<div class="kanban">${COLS.map(([k, n, bg]) => {
+    const col = ts.filter(t => t.estado === k);
+    return `<div class="col ${bg} rounded-xl p-3">
+      <div class="flex justify-between items-center mb-3"><span class="font-bold text-sm text-slate-700">${n}</span><span class="chip bg-white text-slate-500">${col.length}</span></div>
+      ${col.length ? col.map(t => cardTarea(t, false)).join('') : '<p class="text-xs text-slate-500 text-center py-6">Sin tareas</p>'}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+// Pestaña "Resumen": acta, participantes e indicador con sus mediciones
+function htmlResumen(p, g, av) {
+  return `<div class="card p-4 mb-4">
     ${htmlActa(p, g)}
     <div class="mt-3"><div class="seccion mb-1.5">Participantes</div>
       <div class="flex flex-wrap gap-1.5">${(p.miembros || []).length ? p.miembros.map(m => `<span class="chip bg-slate-100 text-slate-600">${esc(m.perfil?.nombre || '—')}</span>`).join('') : '<span class="text-xs text-slate-500">Solo el responsable y quien lo creó.</span>'}</div></div>
-    <div class="mt-4"><div class="seccion mb-2">Fase DMAIC · ${faseNombre(p.fase)}</div>${stepper(p.fase, p.id, g)}</div>
     ${p.indicador ? `<div class="mt-4 pt-4 border-t border-slate-100">
       <div class="text-xs font-bold text-slate-500 mb-2">${esc(p.indicador)}</div>
       <div class="flex justify-between text-center">
@@ -205,24 +237,7 @@ function pintarProyecto(el) {
       ${av != null ? `<div class="h-2 rounded-full bg-slate-200 overflow-hidden mt-3"><div class="h-full bg-amber-500" style="width:${av}%"></div></div><div class="text-[11px] text-slate-500 text-right mt-1">${av}% hacia la meta</div>` : ''}
       ${htmlMediciones(p)}
     </div>` : ''}
-    <div class="mt-4 flex justify-between text-[11px] font-semibold text-slate-500 mb-1"><span>${pr.hechas} de ${pr.total} tareas terminadas</span><span>${pr.pct}%</span></div>
-    <div class="h-2 rounded-full bg-slate-100 overflow-hidden"><div class="h-full bg-emerald-500" style="width:${pr.pct}%"></div></div>
-    ${g ? `<div class="flex flex-wrap gap-2 mt-4">
-      <button onclick="formProyecto(${p.id})" class="btn btn-sec">Editar proyecto</button>
-      <button onclick="formPTarea(${p.id})" class="btn btn-acc">+ Tarea</button>
-      ${p.estado !== 'cerrado' ? `<button onclick="formCierre(${p.id})" class="btn btn-pri">Cerrar proyecto</button>` : ''}
-      <button onclick="borrarProyecto(${p.id})" class="btn btn-del ml-auto">Eliminar</button></div>` : ''}
-  </div>
-  ${htmlCierre(p, g)}
-  ${htmlGuiaFase(p)}
-  ${htmlCausasSoluciones(p)}
-  <div class="kanban">${COLS.map(([k, n, bg]) => {
-    const col = ts.filter(t => t.estado === k);
-    return `<div class="col ${bg} rounded-xl p-3">
-      <div class="flex justify-between items-center mb-3"><span class="font-bold text-sm text-slate-700">${n}</span><span class="chip bg-white text-slate-500">${col.length}</span></div>
-      ${col.length ? col.map(t => cardTarea(t, false)).join('') : '<p class="text-xs text-slate-500 text-center py-6">Sin tareas</p>'}
-    </div>`;
-  }).join('')}</div>`;
+  </div>`;
 }
 
 // Acta del proyecto (qué se quiere resolver y con qué alcance)
@@ -425,11 +440,10 @@ const recorte = (s, n) => s.length > n ? s.slice(0, n - 1) + '…' : s;
 
 function htmlCausasSoluciones(p) {
   const causas = [...(p.causas || [])].sort(porFecha), sols = [...(p.soluciones || [])].sort(porFecha);
-  const abierto = ['analizar', 'mejorar'].includes(p.fase) || causas.length || sols.length;
   const lapiz = (fn, id) => `<button onclick="${fn}(${p.id},${id})" class="text-slate-400 hover:text-slate-700" aria-label="Editar">${ico('pencil', 'w-4 h-4')}</button>`;
-  return `<details class="card mb-4" ${abierto ? 'open' : ''}>
-    <summary class="p-4 cursor-pointer select-none font-bold text-slate-800">Causas y soluciones <span class="font-normal text-slate-500">(${causas.length} causas · ${sols.length} soluciones)</span></summary>
-    <div class="px-4 pb-4">
+  return `<div class="card p-4 mb-4">
+    <p class="text-xs text-slate-500 mb-3">Anota por qué ocurre el problema y qué se va a probar para resolverlo. Cualquier participante puede agregar.</p>
+    <div>
       <div class="flex items-center justify-between"><span class="seccion">Causas del problema</span><button onclick="formCausa(${p.id})" class="btn btn-sec btn-sm">+ Causa</button></div>
       ${causas.length ? causas.map(c => `<div class="py-2 border-b border-slate-100 last:border-0">
           <div class="flex items-center gap-1.5 flex-wrap"><span class="chip bg-indigo-50 text-indigo-700">${CAT6M.find(x => x[0] === c.categoria)?.[1] || c.categoria}</span>
@@ -446,7 +460,7 @@ function htmlCausasSoluciones(p) {
           ${causa ? `<p class="text-xs text-slate-500 mt-0.5">Para la causa: ${esc(recorte(causa.descripcion, 70))}</p>` : ''}
           ${s.resultado ? `<p class="text-xs text-slate-500 mt-0.5">Resultado: ${esc(s.resultado)}</p>` : ''}</div>`; }).join('')
         : '<p class="text-xs text-slate-500 py-2">Aún no hay soluciones. Propón una por cada causa verificada y pruébala en pequeño antes de extenderla.</p>'}
-    </div></details>`;
+    </div></div>`;
 }
 function formCausa(pid, id) {
   const c = id ? proyectos.find(p => p.id === pid).causas.find(x => x.id === id) : {};
@@ -503,7 +517,7 @@ function cardTarea(t, conProyecto) {
     hecha: [['en_proceso', 'Reabrir', 'btn-sec']]
   }[t.estado];
   return `<div class="card p-3 mb-3 ${mia ? 'ring-1 ring-amber-400' : ''}">
-    ${p ? `<button onclick="abrirProyecto(${p.id});mjVista='proyectos'" class="text-[11px] font-bold text-amber-700 uppercase tracking-wide mb-1 text-left">${esc(p.nombre)}</button>` : ''}
+    ${p ? `<button onclick="irAProyecto(${p.id})" class="text-[11px] font-bold text-amber-700 uppercase tracking-wide mb-1 text-left">${esc(p.nombre)}</button>` : ''}
     <div class="font-semibold text-sm text-slate-800 leading-snug">${esc(t.titulo)}</div>
     ${t.descripcion ? `<p class="text-xs text-slate-500 mt-1 leading-snug">${esc(t.descripcion)}</p>` : ''}
     <div class="flex flex-wrap gap-1.5 mt-2">

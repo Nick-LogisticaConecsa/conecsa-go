@@ -153,7 +153,7 @@ async function iniciarApp() {
     const [r, u, m] = await Promise.all([
       cliente.from('enlaces').select('*').order('categoria').order('titulo'),
       cliente.from('perfiles').select('id,nombre,rol,puesto,sucursal').order('nombre'),
-      cliente.from('modulo_roles').select('*')       // si aún no ejecutaste supabase_setup.sql, queda vacío
+      cliente.from('modulo_roles').select('*')       // permisos por módulo (si falla, queda vacío y solo el admin ve Flota)
     ]);
     recursos = r.data || []; usuarios = u.data || []; permisosMod = m.data || [];
     await Promise.all([cargarTareas(), cargarAvisos()]);
@@ -162,6 +162,8 @@ async function iniciarApp() {
     $('sub-dadas').classList.toggle('hidden', !esSuperior);
     $('form-aviso').classList.toggle('hidden', !PUEDE_AVISAR.includes(p.rol));
     $('tab-flota').classList.toggle('hidden', !(puede('flota') || puede('contactos')));
+    const etiquetaFlota = $('tab-flota').querySelector('span');        // quien solo ve contactos (p. ej. conductores) ve la pestaña como "Contactos"
+    if (etiquetaFlota) etiquetaFlota.textContent = puede('flota') ? 'Flota' : 'Contactos';
 
     $('splash').classList.add('hidden'); $('app').classList.remove('hidden');
     irTab('biblioteca');
@@ -317,7 +319,7 @@ function pintarAvisos() {
 }
 async function crearAviso() {
   const msj = $('a-mensaje').value.trim(), img = $('a-img').value.trim();
-  if (!msj && !img) return;
+  if (!msj && !img) return toast('Escribe el comunicado antes de enviarlo.', true);
   if (!await db(cliente.from('avisos').insert({ mensaje: msj, imagen_url: img || null }))) return;
   $('a-mensaje').value = ''; $('a-img').value = '';
   toast('Aviso publicado');
@@ -333,8 +335,17 @@ async function borrarAviso(id) {
 async function cargarTareas() {
   const { data } = await cliente.from('tareas').select('*, creador:perfiles!creado_por(nombre), tarea_asignados(usuario_id, estado, perfil:perfiles(nombre)), tarea_comentarios(id, tipo, texto, created_at, autor:perfiles!autor_id(nombre)), subtareas(id, titulo, fecha_limite, hora_limite, asignado_a, estado, created_by, created_at, asignado:perfiles!asignado_a(nombre))').order('created_at', { ascending: false });
   tareas = data || [];
-  const pend = tareas.filter(t => t.tarea_asignados.some(a => a.usuario_id === yo.id && a.estado !== 'hecha')).length;
-  $('badge').textContent = pend; $('badge').classList.toggle('hidden', !pend);
+  pendPersonales = tareas.filter(t => t.tarea_asignados.some(a => a.usuario_id === yo.id && a.estado !== 'hecha')).length;
+  pintarBadgeTareas();
+}
+// El contador de la pestaña Tareas suma las tareas propias y las de proyectos de mejora que tengo pendientes
+let pendPersonales = 0;
+const EST_TAREA = { pendiente: 'Por hacer', en_curso: 'En curso', hecha: 'Hecha' };
+function pintarBadgeTareas() {
+  const deProyectos = (typeof ptareas !== 'undefined' && yo) ? ptareas.filter(t => t.asignado_a === yo.id && t.estado !== 'hecha').length : 0;
+  const n = pendPersonales + deProyectos;
+  $('badge').textContent = n; $('badge').classList.toggle('hidden', !n);
+  $('sub-proy').textContent = deProyectos ? `De proyectos (${deProyectos})` : 'De proyectos';
 }
 function subTareas(s) {
   sub = s;
@@ -342,6 +353,7 @@ function subTareas(s) {
   pintarTareas();
 }
 function pintarTareas() {
+  if (sub === 'proy') { $('lista-tareas').innerHTML = htmlMisTareas(); return; }       // tareas de proyectos de mejora (se dibujan desde mejora.js)
   const l = sub === 'mias'
     ? tareas.filter(t => t.tarea_asignados.some(a => a.usuario_id === yo.id))
     : tareas.filter(t => t.creado_por === yo.id && t.tarea_asignados.some(a => a.usuario_id !== yo.id));
@@ -360,9 +372,9 @@ function pintarTareas() {
       </div>
       ${sub === 'mias' && mia ? `
         <select onchange="cambiarEstado(${t.id}, this.value)" class="mt-3 text-xs font-bold p-2 rounded-lg border outline-none est-${mia.estado}">
-          ${['pendiente', 'en_curso', 'hecha'].map(e => `<option value="${e}" ${e === mia.estado ? 'selected' : ''}>${e.replace('_', ' ').toUpperCase()}</option>`).join('')}
+          ${['pendiente', 'en_curso', 'hecha'].map(e => `<option value="${e}" ${e === mia.estado ? 'selected' : ''}>${EST_TAREA[e]}</option>`).join('')}
         </select>` : `
-        <div class="flex flex-wrap gap-1.5 mt-3">${t.tarea_asignados.map(a => `<span class="text-[10px] font-bold px-2 py-1 rounded-full est-${a.estado}">${esc(a.perfil?.nombre || '—')}: ${a.estado.replace('_', ' ').toUpperCase()}</span>`).join('')}</div>
+        <div class="flex flex-wrap gap-1.5 mt-3">${t.tarea_asignados.map(a => `<span class="text-[10px] font-bold px-2 py-1 rounded-full est-${a.estado}">${esc(a.perfil?.nombre || '—')}: ${EST_TAREA[a.estado]}</span>`).join('')}</div>
         <button onclick="borrarTarea(${t.id})" class="text-xs font-bold text-red-600 mt-3 hover:underline">Eliminar tarea</button>`}
       ${htmlSubtareas(t)}
       <button onclick="abrirHiloTarea(${t.id})" class="btn btn-sec btn-sm mt-3">${ico('chat', 'w-4 h-4')} Comentarios${(t.tarea_comentarios || []).length ? ` (${t.tarea_comentarios.length})` : ''}</button>

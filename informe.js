@@ -117,7 +117,7 @@ const lista3 = (arr, vacio) => arr.length ? esc(arr.slice(0, 6).join(', ')) + (a
 function htmlInforme() {
   if (!infMes) infMes = mesActual0();
   if (!infDatos || infDatos.mes !== infMes) { cargarInforme(); return '<p class="vacio">Calculando el informe…</p>'; }
-  if (infDatos.error) return `<div class="card p-5 text-sm text-slate-600"><p class="font-bold text-slate-800 mb-1">No se pudo calcular el informe</p><p>Ejecuta <code class="bg-slate-100 px-1 rounded">supabase_flota_v2.sql</code> en Supabase si aún no lo hiciste.</p><p class="text-xs text-red-500 mt-2">${esc(infDatos.error)}</p></div>`;
+  if (infDatos.error) return `<div class="card p-5 text-sm text-slate-600"><p class="font-bold text-slate-800 mb-1">No se pudo calcular el informe</p><p>Revisa tu conexión e intenta de nuevo. Si sigue igual, avisa al administrador.</p><p class="text-xs text-red-500 mt-2">${esc(infDatos.error)}</p></div>`;
 
   const c = calcMes(infMes), p = calcMes(mesDesplazado(infMes, -1));
   const pct = x => x == null ? 'Sin datos' : (x * 100).toFixed(1) + '%';

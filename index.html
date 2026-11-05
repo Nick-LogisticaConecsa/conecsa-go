@@ -156,10 +156,11 @@
 
     <!-- Tareas -->
     <section id="v-tareas" class="hidden max-w-2xl mx-auto">
-      <div class="flex gap-2 mb-4">
+      <div class="flex gap-2 mb-4 overflow-x-auto scroll-x">
         <button id="sub-mias" onclick="subTareas('mias')" class="sub seg">Mis tareas</button>
-        <button id="sub-dadas" onclick="subTareas('dadas')" class="sub seg">Asignadas</button>
-        <button onclick="toggleForm()" class="btn btn-acc ml-auto !rounded-full !py-1.5">+ Nueva</button>
+        <button id="sub-dadas" onclick="subTareas('dadas')" class="sub seg">Las que asigné</button>
+        <button id="sub-proy" onclick="subTareas('proy')" class="sub seg">De proyectos</button>
+        <button onclick="toggleForm()" class="btn btn-acc ml-auto flex-none whitespace-nowrap !rounded-full !py-1.5">+ Nueva</button>
       </div>
       <div id="form-tarea" class="hidden card p-4 mb-4">
         <input id="t-titulo" placeholder="¿Qué hay que hacer?" class="inp mb-2">
