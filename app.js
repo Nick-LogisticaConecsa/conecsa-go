@@ -350,7 +350,8 @@ function pintarTareas() {
     const mia = t.tarea_asignados.find(a => a.usuario_id === yo.id);
     const vencida = estaVencido(t.fecha_limite, t.hora_limite, t.tarea_asignados.every(a => a.estado === 'hecha'));
     return `<div class="card p-4 mb-3">
-      <div class="font-bold text-slate-800">${esc(t.titulo)}</div>
+      <div class="flex items-start justify-between gap-2"><div class="font-bold text-slate-800">${esc(t.titulo)}</div>
+        ${puedeEditarTarea(t) ? `<button onclick="formEditarTarea(${t.id})" class="text-slate-400 hover:text-slate-700 flex-none" aria-label="Editar tarea">${ico('pencil', 'w-4 h-4')}</button>` : ''}</div>
       ${t.descripcion ? `<p class="text-sm text-slate-600 mt-1 leading-snug">${esc(t.descripcion)}</p>` : ''}
       <div class="meta mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 ${vencida ? '!text-red-600' : ''}">
         <span class="chip ${PRIO[t.prioridad] || 'b-gris'}">${esc((t.prioridad || '').toUpperCase())}</span>
@@ -367,6 +368,29 @@ function pintarTareas() {
       <button onclick="abrirHiloTarea(${t.id})" class="btn btn-sec btn-sm mt-3">${ico('chat', 'w-4 h-4')} Comentarios${(t.tarea_comentarios || []).length ? ` (${t.tarea_comentarios.length})` : ''}</button>
     </div>`;
   }).join('');
+}
+
+// Editan una tarea quien la creó y admin/jefatura que participan de ella
+const puedeEditarTarea = t => t.creado_por === yo.id || ['admin', 'jefatura'].includes(yo.rol);
+function formEditarTarea(id) {
+  const t = tareas.find(x => x.id === id);
+  abrirSheet('Editar tarea', `
+    ${campo('et-titulo', 'Tarea', { val: t.titulo })}
+    ${area('et-desc', 'Detalle (opcional)', t.descripcion, 2)}
+    ${lista('et-prio', 'Prioridad', [['baja', 'Baja'], ['media', 'Media'], ['alta', 'Alta']], t.prioridad || 'media')}
+    ${fila(campo('et-fecha', 'Fecha límite', { type: 'date', val: t.fecha_limite }), campo('et-hora', 'Hora límite (opcional)', { type: 'time', val: (t.hora_limite || '').slice(0, 5) }))}
+    ${PUEDE_ASIGNAR.includes(yo.rol) ? `<div class="lbl">Asignada a</div>${checksUsuarios('chk-ea', usuarios, new Set(t.tarea_asignados.map(a => a.usuario_id)))}` : ''}
+    <button onclick="lock(this,()=>guardarEdicionTarea(${id}))" class="btn btn-pri w-full !py-3">Guardar cambios</button>`);
+}
+async function guardarEdicionTarea(id) {
+  const t = tareas.find(x => x.id === id), titulo = val('et-titulo'), fecha = nul('et-fecha'), hora = nul('et-hora');
+  if (!titulo) return toast('Escribe un título para la tarea.', true);
+  if (hora && !fecha) return toast('Para poner una hora, elige también la fecha.', true);
+  const asigna = PUEDE_ASIGNAR.includes(yo.rol), ids = asigna ? [...document.querySelectorAll('.chk-ea:checked')].map(c => c.value) : [];
+  if (asigna && !ids.length) return toast('Elige al menos una persona.', true);
+  if (!await db(cliente.from('tareas').update({ titulo, descripcion: nul('et-desc'), prioridad: val('et-prio'), fecha_limite: fecha, hora_limite: hora }).eq('id', id))) return;
+  if (asigna && !await sincronizar('tarea_asignados', 'tarea_id', id, t.tarea_asignados.map(a => a.usuario_id), ids)) return;
+  cerrarSheet(); toast('Tarea actualizada'); await cargarTareas(); pintarTareas();
 }
 
 // --- SUBTAREAS (cada una con su fecha, hora y responsable) ---

@@ -493,7 +493,7 @@ async function borrarSolucion(id) {
 
 function cardTarea(t, conProyecto) {
   const g = gestionaProyecto(proyectos.find(x => x.id === t.proyecto_id)), mia = t.asignado_a === yo.id, puedeMover = mia || g;
-  const vencida = t.fecha_limite && t.estado !== 'hecha' && (t.aplazada_hasta ? new Date(t.aplazada_hasta) < new Date() : diasHasta(t.fecha_limite) < 0);
+  const vencida = t.aplazada_hasta ? t.estado !== 'hecha' && new Date(t.aplazada_hasta) < new Date() : estaVencido(t.fecha_limite, t.hora_limite, t.estado === 'hecha');
   const p = conProyecto ? proyectos.find(x => x.id === t.proyecto_id) : null;
   const coms = t.comentarios || [], conEvidencia = coms.some(c => c.tipo === 'evidencia');
   const otros = (t.participantes || []).filter(x => x.usuario_id !== t.asignado_a);
@@ -509,7 +509,7 @@ function cardTarea(t, conProyecto) {
     <div class="flex flex-wrap gap-1.5 mt-2">
       <span class="chip ${PRIO[t.prioridad]}">${t.prioridad.toUpperCase()}</span>
       ${t.fase ? `<span class="chip bg-indigo-50 text-indigo-700">${faseNombre(t.fase)}</span>` : ''}
-      ${t.fecha_limite ? `<span class="chip ${vencida ? 'b-rojo' : 'b-gris'}">${ico(vencida ? 'warn' : 'cal', 'w-3 h-3')} ${t.aplazada_hasta ? fmtFH(t.aplazada_hasta) : formFecha(t.fecha_limite)}</span>` : ''}
+      ${t.fecha_limite ? `<span class="chip ${vencida ? 'b-rojo' : 'b-gris'}">${ico(vencida ? 'warn' : 'cal', 'w-3 h-3')} ${t.aplazada_hasta ? fmtFH(t.aplazada_hasta) : fmtLimite(t.fecha_limite, t.hora_limite)}</span>` : ''}
       <span class="chip ${mia ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-500'}">${ico('user', 'w-3 h-3')} ${esc(mia ? 'Yo' : (t.asignado?.nombre || 'Sin asignar'))}</span>
       ${t.aplazos ? `<span class="chip b-gris">Aplazada ${t.aplazos}×</span>` : ''}
       ${aplazoPendiente(t) ? '<span class="chip b-ambar">Aplazo solicitado</span>' : ''}
@@ -651,7 +651,8 @@ function formPTarea(pid, id) {
     ${lista('pt-asig', 'Responsable de la tarea', opcionesUsuarios(true, personasProyecto(pid, [t.asignado_a])), t.asignado_a || '')}
     <div class="lbl">Involucrados en la tarea (podrán comentar)</div>
     ${checksUsuarios('chk-pp', personasProyecto(pid, (t.participantes || []).map(x => x.usuario_id)), new Set((t.participantes || []).map(x => x.usuario_id)))}
-    ${fila(lista('pt-prio', 'Prioridad', [['baja', 'Baja'], ['media', 'Media'], ['alta', 'Alta']], t.prioridad || 'media'), campo('pt-fecha', 'Fecha límite', { type: 'date', val: t.fecha_limite }))}
+    ${lista('pt-prio', 'Prioridad', [['baja', 'Baja'], ['media', 'Media'], ['alta', 'Alta']], t.prioridad || 'media')}
+    ${fila(campo('pt-fecha', 'Fecha límite', { type: 'date', val: t.fecha_limite }), campo('pt-hora', 'Hora límite (opcional)', { type: 'time', val: (t.hora_limite || '').slice(0, 5) }))}
     ${lista('pt-fase', 'Etapa DMAIC (opcional)', [['', '—'], ...FASES.map(f => [f[0], f[2]])], t.fase || (proyectos.find(p => p.id === pid)?.fase) || '')}
     <button onclick="lock(this,()=>guardarPTarea(${pid},${id || 0}))" class="btn btn-pri w-full !py-3 mt-2">Guardar</button>`);
 }
@@ -659,10 +660,12 @@ async function guardarPTarea(pid, id) {
   if (!val('pt-titulo')) return toast('Escribe qué hay que hacer.', true);
   const fila = {
     titulo: val('pt-titulo'), descripcion: nul('pt-desc'), asignado_a: nul('pt-asig'),
-    prioridad: val('pt-prio'), fecha_limite: nul('pt-fecha'), fase: nul('pt-fase')
+    prioridad: val('pt-prio'), fecha_limite: nul('pt-fecha'), hora_limite: nul('pt-hora'), fase: nul('pt-fase')
   };
+  if (fila.hora_limite && !fila.fecha_limite) return toast('Para poner una hora, elige también la fecha.', true);
   const previa = id ? ptareas.find(x => x.id === id) : null;
-  if (previa && fila.fecha_limite !== previa.fecha_limite) fila.aplazada_hasta = null;      // cambió la fecha a mano: ya no rige el aplazo con hora
+  // si cambió la fecha u hora a mano, ya no rige el aplazo aprobado
+  if (previa && (fila.fecha_limite !== previa.fecha_limite || fila.hora_limite !== ((previa.hora_limite || '').slice(0, 5) || null))) fila.aplazada_hasta = null;
   const involucrados = [...document.querySelectorAll('.chk-pp:checked')].map(c => c.value).filter(u => u !== fila.asignado_a);
   const r = await db(id ? cliente.from('proyecto_tareas').update(fila).eq('id', id).select().single() : cliente.from('proyecto_tareas').insert({ ...fila, proyecto_id: pid }).select().single());
   if (!r) return;
