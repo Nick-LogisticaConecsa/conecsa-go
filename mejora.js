@@ -10,6 +10,46 @@ const FASES = [['definir', 'D', 'Definir'], ['medir', 'M', 'Medir'], ['analizar'
 const COLS = [['pendiente', 'Por hacer', 'bg-slate-100'], ['en_proceso', 'En proceso', 'bg-blue-50'], ['hecha', 'Hecho', 'bg-emerald-50']];
 const PRIO = { alta: 'b-rojo', media: 'b-ambar', baja: 'b-gris' };
 
+// Guía en lenguaje simple de cada fase (qué se hace, qué hay que revisar y qué se espera al final)
+const GUIA = {
+  definir: {
+    pregunta: '¿Dónde duele?',
+    que: 'Explica el problema con claridad, qué quieres lograr y hasta dónde llega el proyecto.',
+    hacer: ['Escribe el problema: qué pasa, cuánto y dónde.', 'Fija un objetivo con una meta y una fecha.', 'Marca el alcance: qué entra y qué no.', 'Elige un patrocinador y a los participantes.'],
+    resultado: 'Un problema claro y medible, con objetivo y equipo.',
+    herramientas: ['Acta del proyecto', 'SIPOC (mapa del proceso)', 'Voz del cliente', 'Análisis de involucrados']
+  },
+  medir: {
+    pregunta: '¿Cuánto duele?',
+    que: 'Mide cómo está el proceso hoy, con datos y no con opiniones. Ese número es tu punto de partida.',
+    hacer: ['Elige qué vas a medir (el indicador).', 'Recoge datos reales durante unos días.', 'Anota el valor base en el proyecto.'],
+    resultado: 'Un número de partida confiable para comparar después.',
+    herramientas: ['Hoja de registro de datos', 'Mapa del proceso actual', 'Plan de recolección de datos']
+  },
+  analizar: {
+    pregunta: '¿Por qué duele?',
+    que: 'Busca las causas reales del problema, no los síntomas. Comprueba con datos cuáles pesan más.',
+    hacer: ['Lista las posibles causas: método, personas, materiales, equipos, medición y ambiente.', 'Pregunta “¿por qué?” varias veces hasta llegar a la raíz.', 'Verifica con datos cuáles causas son las más importantes.'],
+    resultado: 'Pocas causas raíz comprobadas con datos.',
+    herramientas: ['Diagrama de Ishikawa (6M)', '5 Porqués', 'Pareto 80/20']
+  },
+  mejorar: {
+    pregunta: '¿Cómo lo curamos?',
+    que: 'Propón soluciones para cada causa raíz y pruébalas en pequeño antes de extenderlas.',
+    hacer: ['Propón soluciones para cada causa raíz.', 'Elige las de más impacto y menos esfuerzo.', 'Pruébalas a pequeña escala (piloto) y mide el resultado.', 'Si funciona, extiéndelas.'],
+    resultado: 'Soluciones probadas que reducen las causas del problema.',
+    herramientas: ['Lluvia de ideas', 'Matriz impacto / esfuerzo', 'Plan de piloto', 'Checklist 5S']
+  },
+  controlar: {
+    pregunta: '¿Cómo evitamos que vuelva?',
+    que: 'Deja la mejora funcionando: documenta el nuevo método y revisa el indicador con frecuencia.',
+    hacer: ['Documenta el nuevo método (procedimiento estándar).', 'Define quién revisa el indicador y cada cuánto.', 'Capacita a las personas involucradas.', 'Cuando se estabilice, cierra el proyecto y anota lo aprendido.'],
+    resultado: 'La mejora se mantiene y todos saben cómo hacerlo.',
+    herramientas: ['Plan de control', 'Procedimiento estándar', 'Tablero de indicadores', 'Lecciones aprendidas']
+  }
+};
+let guiaAbierta = true;
+
 let proyectos = [], ptareas = [], mejoraLista = false, mejoraError = '';
 let mjVista = 'proyectos', proyId = null, mjFiltro = 'activo';
 
@@ -87,7 +127,7 @@ function avanceMeta(p) {
 function stepper(fase, pid, clickable) {
   const idx = FASES.findIndex(f => f[0] === fase);
   return `<div class="flex items-center gap-1">${FASES.map(([k, l, n], i) =>
-    `<button ${clickable ? `onclick="cambiarFase(${pid},'${k}')"` : 'disabled'} title="${n}" aria-label="${n}" class="step ${i < idx ? 'step-done' : i === idx ? 'step-on' : 'step-off'}">${l}</button>`
+    `<button ${clickable ? `onclick="cambiarFase(${pid},'${k}')"` : 'disabled'} title="${n} · ${GUIA[k].pregunta}" aria-label="${n}: ${GUIA[k].pregunta}" class="step ${i < idx ? 'step-done' : i === idx ? 'step-on' : 'step-off'}">${l}</button>`
   ).join('<span class="step-line"></span>')}</div>`;
 }
 function htmlProyectos() {
@@ -145,7 +185,7 @@ function pintarProyecto(el) {
       ${p.fecha_inicio ? `<span>Inicio ${formFecha(p.fecha_inicio)}</span>` : ''}
       ${p.fecha_meta ? `<span>${ico('flag')} Meta ${formFecha(p.fecha_meta)}</span>` : ''}
     </div>
-    ${p.descripcion ? `<p class="text-sm text-slate-600 mt-3 leading-relaxed whitespace-pre-wrap">${esc(p.descripcion)}</p>` : ''}
+    ${htmlActa(p, g)}
     <div class="mt-3"><div class="seccion mb-1.5">Participantes</div>
       <div class="flex flex-wrap gap-1.5">${(p.miembros || []).length ? p.miembros.map(m => `<span class="chip bg-slate-100 text-slate-600">${esc(m.perfil?.nombre || '—')}</span>`).join('') : '<span class="text-xs text-slate-500">Solo el responsable y quien lo creó.</span>'}</div></div>
     <div class="mt-4"><div class="seccion mb-2">Fase DMAIC · ${faseNombre(p.fase)}</div>${stepper(p.fase, p.id, g)}</div>
@@ -165,6 +205,7 @@ function pintarProyecto(el) {
       <button onclick="formPTarea(${p.id})" class="btn btn-acc">+ Tarea</button>
       <button onclick="borrarProyecto(${p.id})" class="btn btn-del ml-auto">Eliminar</button></div>` : ''}
   </div>
+  ${htmlGuiaFase(p)}
   <div class="kanban">${COLS.map(([k, n, bg]) => {
     const col = ts.filter(t => t.estado === k);
     return `<div class="col ${bg} rounded-xl p-3">
@@ -172,6 +213,37 @@ function pintarProyecto(el) {
       ${col.length ? col.map(t => cardTarea(t, false)).join('') : '<p class="text-xs text-slate-500 text-center py-6">Sin tareas</p>'}
     </div>`;
   }).join('')}</div>`;
+}
+
+// Acta del proyecto (qué se quiere resolver y con qué alcance)
+function htmlActa(p, g) {
+  const campos = [['Problema', p.descripcion], ['Objetivo', p.objetivo], ['Alcance', p.alcance], ['Beneficio esperado', p.beneficio]].filter(c => c[1]);
+  const pat = usuarios.find(u => u.id === p.patrocinador_id)?.nombre;
+  if (!campos.length && !pat) return g ? '<p class="text-xs text-slate-500 mt-3">Completa el acta del proyecto (problema, objetivo y alcance) con “Editar proyecto”.</p>' : '';
+  return `<div class="mt-3 space-y-2">${campos.map(([t, v]) => `<div><div class="seccion">${t}</div><p class="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">${esc(v)}</p></div>`).join('')}
+    ${pat ? `<div><div class="seccion">Patrocinador</div><p class="text-sm text-slate-600">${esc(pat)}</p></div>` : ''}</div>`;
+}
+
+// Guía de la fase actual + herramientas de la Biblioteca para esa fase
+function htmlGuiaFase(p) {
+  const gu = GUIA[p.fase]; if (!gu) return '';
+  const idx = FASES.findIndex(f => f[0] === p.fase);
+  const links = recursos.filter(r => r.tipo === 'herramienta' && r.fase === p.fase && veRecurso(r));
+  return `<details class="card mb-4" ${guiaAbierta ? 'open' : ''} ontoggle="guiaAbierta=this.open">
+    <summary class="p-4 cursor-pointer select-none"><span class="font-bold text-slate-800">Fase ${idx + 1} de 5 · ${faseNombre(p.fase)}</span>
+      <span class="font-semibold text-amber-700 ml-1">${gu.pregunta}</span></summary>
+    <div class="px-4 pb-4 text-sm text-slate-600">
+      <p class="leading-relaxed">${gu.que}</p>
+      <div class="seccion mt-3 mb-1">Antes de pasar a la siguiente fase, revisa</div>
+      <ul class="list-disc pl-5 space-y-0.5">${gu.hacer.map(x => `<li>${x}</li>`).join('')}</ul>
+      <div class="seccion mt-3 mb-1">Resultado esperado</div><p>${gu.resultado}</p>
+      <div class="seccion mt-3 mb-1.5">Herramientas que ayudan</div>
+      <div class="flex flex-wrap gap-1.5">${gu.herramientas.map(h => `<span class="chip bg-slate-100 text-slate-600">${h}</span>`).join('')}</div>
+      ${links.length ? `<div class="mt-3 grid gap-2">${links.map(r => `<a href="${esc(safeUrl(r.url))}" target="_blank" rel="noopener" class="block rounded-lg border border-slate-200 bg-slate-50 p-3 hover:bg-white">
+          <span class="font-semibold text-slate-800">${esc(r.titulo)}</span>${r.descripcion ? `<span class="block text-xs text-slate-500 mt-0.5">${esc(r.descripcion)}</span>` : ''}
+          <span class="block text-xs font-bold text-amber-700 mt-1">Abrir herramienta</span></a>`).join('')}</div>`
+        : `<p class="text-xs text-slate-500 mt-3">Aún no hay enlaces de herramientas para esta fase${yo.rol === 'admin' ? '. Añádelos en Biblioteca → Herramientas.' : '.'}</p>`}
+    </div></details>`;
 }
 
 function cardTarea(t, conProyecto) {
@@ -262,10 +334,15 @@ function personasProyecto(pid, extra = []) {
 function formProyecto(id) {
   const p = id ? proyectos.find(x => x.id === id) : {};
   abrirSheet(id ? 'Editar proyecto' : 'Nuevo proyecto de mejora', `
-    ${campo('p-nombre', 'Nombre del proyecto', { val: p.nombre, ph: 'Ej. Reducir tiempo de despacho' })}
-    ${area('p-desc', 'Problema / objetivo', p.descripcion)}
+    ${campo('p-nombre', 'Nombre del proyecto', { val: p.nombre, ph: 'Ej. Reducir despachos que salen tarde' })}
+    <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mt-1 mb-2">Acta del proyecto</div>
+    ${area('p-desc', 'Problema: ¿qué pasa, cuánto y dónde?', p.descripcion, 3)}
+    ${area('p-obj', 'Objetivo: ¿qué quieres lograr, cuánto y para cuándo?', p.objetivo, 2)}
+    ${area('p-alc', 'Alcance: ¿qué incluye y qué no?', p.alcance, 2)}
+    ${area('p-ben', 'Beneficio esperado', p.beneficio, 2)}
     ${fila(campo('p-area', 'Área', { val: p.area, ph: 'Almacén, Despacho…' }), lista('p-suc', 'Sucursal', [['', 'Todas'], ...SUCURSALES.map(s => [s, s])], p.sucursal || ''))}
-    ${lista('p-resp', 'Responsable del proyecto', opcionesUsuarios(true), p.responsable_id || '')}
+    ${lista('p-resp', 'Responsable (lidera el proyecto)', opcionesUsuarios(true), p.responsable_id || '')}
+    ${lista('p-pat', 'Patrocinador (quien lo respalda y quita obstáculos)', opcionesUsuarios(true).map(o => o[0] === '' ? ['', '— Sin patrocinador —'] : o), p.patrocinador_id || '')}
     <div class="lbl">Participantes (solo ellos verán el proyecto)</div>
     ${checksUsuarios('chk-m', usuarios.filter(u => u.id !== yo.id), new Set((p.miembros || []).map(m => m.usuario_id)))}
     <p class="text-[11px] text-slate-500 -mt-2 mb-3">Tú, el responsable y el administrador siempre lo ven.</p>
@@ -281,8 +358,8 @@ async function guardarProyecto(id) {
   if (!val('p-nombre')) return toast('Ponle un nombre al proyecto.', true);
   const marcados = [...document.querySelectorAll('.chk-m:checked')].map(c => c.value);
   const fila = {
-    nombre: val('p-nombre'), descripcion: nul('p-desc'), area: nul('p-area'), sucursal: nul('p-suc'),
-    responsable_id: nul('p-resp'), fase: val('p-fase'), estado: val('p-estado'),
+    nombre: val('p-nombre'), descripcion: nul('p-desc'), objetivo: nul('p-obj'), alcance: nul('p-alc'), beneficio: nul('p-ben'),
+    area: nul('p-area'), sucursal: nul('p-suc'), responsable_id: nul('p-resp'), patrocinador_id: nul('p-pat'), fase: val('p-fase'), estado: val('p-estado'),
     fecha_inicio: nul('p-ini'), fecha_meta: nul('p-meta'),
     indicador: nul('p-ind'), valor_base: num('p-base'), valor_actual: num('p-actual'), valor_meta: num('p-vmeta')
   };

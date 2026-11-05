@@ -192,10 +192,10 @@ function irTab(t) {
 const rolesDe = r => Array.isArray(r.roles_permitidos) ? r.roles_permitidos : [];
 const veRecurso = r => yo.rol === 'admin' || (rolesDe(r).length ? rolesDe(r).includes(yo.rol) : (r.tipo || 'formulario') !== 'respuesta');
 const quienVe = r => rolesDe(r).length ? rolesDe(r).join(', ') : ((r.tipo || 'formulario') === 'respuesta' ? 'Solo admin' : 'Todos');
-const TIPOS_ENLACE = [['formulario', 'Formulario'], ['manual', 'Proceso'], ['respuesta', 'Data (respuestas)']];
+const TIPOS_ENLACE = [['formulario', 'Formulario'], ['manual', 'Proceso'], ['herramienta', 'Herramienta de mejora'], ['respuesta', 'Data (respuestas)']];
 
 function pintarBiblioteca() {
-  const items = [['formulario', 'Formularios'], ['manual', 'Procesos']];
+  const items = [['formulario', 'Formularios'], ['manual', 'Procesos'], ['herramienta', 'Herramientas']];
   if (yo.rol === 'admin' || recursos.some(r => r.tipo === 'respuesta' && veRecurso(r))) items.push(['respuesta', 'Data']);
   if (!items.some(i => i[0] === bib)) bib = 'formulario';
   $('bib-seg').innerHTML = seg(items, bib, 'irBib') +
@@ -208,18 +208,26 @@ function pintarRecursos() {
   const items = recursos.filter(r => veRecurso(r) && (r.tipo || 'formulario') === bib && (r.titulo + ' ' + (r.descripcion || '')).toLowerCase().includes(q));
 
   if (!items.length) {
-    const etiquetas = { formulario: 'formularios', manual: 'procesos', respuesta: 'bases de datos' };
+    const etiquetas = { formulario: 'formularios', manual: 'procesos', respuesta: 'bases de datos', herramienta: 'herramientas de mejora' };
     $('lista-recursos').innerHTML = `<p class="vacio">No hay ${etiquetas[bib] || 'elementos'} disponibles.</p>`;
     return;
   }
+  // Las herramientas se agrupan por fase de la mejora (en orden); el resto, por categoría
   const grupos = {};
   items.forEach(r => {
-    let cat = (r.categoria || 'General').trim() || 'General';
-    cat = cat.charAt(0).toUpperCase() + cat.slice(1);
+    let cat;
+    if (bib === 'herramienta') {
+      const i = FASES.findIndex(f => f[0] === r.fase);
+      cat = i < 0 ? 'Para cualquier fase' : `${i + 1}. ${FASES[i][2]} · ${GUIA[r.fase].pregunta}`;
+    } else {
+      cat = (r.categoria || 'General').trim() || 'General';
+      cat = cat.charAt(0).toUpperCase() + cat.slice(1);
+    }
     (grupos[cat] ||= []).push(r);
   });
-  const textoAccion = bib === 'manual' ? 'Abrir documento' : bib === 'respuesta' ? 'Ver respuestas' : 'Llenar formulario';
-  $('lista-recursos').innerHTML = Object.entries(grupos).map(([cat, l]) => `
+  const textoAccion = bib === 'manual' ? 'Abrir documento' : bib === 'respuesta' ? 'Ver respuestas' : bib === 'herramienta' ? 'Abrir herramienta' : 'Llenar formulario';
+  const orden = bib === 'herramienta' ? Object.entries(grupos).sort(([a], [b]) => a.localeCompare(b, 'es')) : Object.entries(grupos);
+  $('lista-recursos').innerHTML = orden.map(([cat, l]) => `
     <div class="mb-6">
       <h3 class="font-bold text-slate-500 text-xs uppercase tracking-wider mb-3 ml-1">${esc(cat)}</h3>
       ${l.map(r => `
@@ -253,19 +261,20 @@ function formEnlace(id) {
     ${campo('e-titulo', 'Título', { val: r.titulo })}
     ${campo('e-url', 'Enlace (URL)', { type: 'url', val: r.url, ph: 'https://forms.gle/…' })}
     ${fila(lista('e-tipo', 'Dónde aparece', TIPOS_ENLACE, r.tipo || bib), campo('e-ver', 'Versión', { val: r.version, ph: '1.0' }))}
+    ${lista('e-fase', 'Fase de la mejora (solo para Herramientas)', [['', 'Para cualquier fase'], ...FASES.map(f => [f[0], `${f[2]} · ${GUIA[f[0]].pregunta}`])], r.fase || '')}
     ${campo('e-cat', 'Categoría', { val: r.categoria, ph: 'Almacén, Despacho…', extra: 'list="e-cats"' })}
     <datalist id="e-cats">${cats.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
     ${area('e-desc', 'Descripción (opcional)', r.descripcion, 2)}
     <div class="lbl">¿Quién lo puede ver?</div>
     <div class="flex flex-wrap gap-2 mb-2">${roles.map(x => `<label class="filtro filtro-off cursor-pointer"><input type="checkbox" class="chk-r accent-[#0B1320]" value="${esc(x)}" ${marcados.includes(x) ? 'checked' : ''}> ${esc(x)}</label>`).join('')}</div>
-    <p class="meta mb-4">Sin marcar ninguno: Formularios y Procesos los ven todos; Data solo tú. Tú (admin) siempre ves todo.</p>
+    <p class="meta mb-4">Sin marcar ninguno: Formularios, Procesos y Herramientas los ven todos; Data solo tú. Tú (admin) siempre ves todo.</p>
     <button onclick="lock(this,()=>guardarEnlace(${id || 0}))" class="btn btn-pri w-full !py-3">Guardar</button>`);
 }
 async function guardarEnlace(id) {
   if (!val('e-titulo')) return toast('Escribe un título.', true);
   if (!/^https?:\/\//i.test(val('e-url'))) return toast('El enlace debe empezar con https://', true);
   const roles = [...document.querySelectorAll('.chk-r:checked')].map(c => c.value);
-  const f = { titulo: val('e-titulo'), url: val('e-url'), tipo: val('e-tipo'), version: nul('e-ver'), categoria: nul('e-cat'), descripcion: nul('e-desc'), roles_permitidos: roles.length ? roles : null };
+  const f = { titulo: val('e-titulo'), url: val('e-url'), tipo: val('e-tipo'), fase: val('e-tipo') === 'herramienta' ? nul('e-fase') : null, version: nul('e-ver'), categoria: nul('e-cat'), descripcion: nul('e-desc'), roles_permitidos: roles.length ? roles : null };
   if (!await db(id ? cliente.from('enlaces').update(f).eq('id', id) : cliente.from('enlaces').insert(f))) return;
   cerrarSheet(); toast('Enlace guardado');
   await cargarRecursos(); bib = f.tipo; pintarBiblioteca();
