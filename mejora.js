@@ -15,35 +15,35 @@ const GUIA = {
   definir: {
     pregunta: '¿Dónde duele?',
     que: 'Explica el problema con claridad, qué quieres lograr y hasta dónde llega el proyecto.',
-    hacer: ['Escribe el problema: qué pasa, cuánto y dónde.', 'Fija un objetivo con una meta y una fecha.', 'Marca el alcance: qué entra y qué no.', 'Elige un patrocinador y a los participantes.'],
+    criterios: [['Problema escrito: qué pasa, cuánto y dónde', p => !!p.descripcion], ['Objetivo con meta y fecha', p => !!p.objetivo], ['Alcance: qué entra y qué no', p => !!p.alcance], ['Responsable y patrocinador elegidos', p => !!(p.responsable_id && p.patrocinador_id)]],
     resultado: 'Un problema claro y medible, con objetivo y equipo.',
     herramientas: ['Acta del proyecto', 'SIPOC (mapa del proceso)', 'Voz del cliente', 'Análisis de involucrados']
   },
   medir: {
     pregunta: '¿Cuánto duele?',
     que: 'Mide cómo está el proceso hoy, con datos y no con opiniones. Ese número es tu punto de partida.',
-    hacer: ['Elige qué vas a medir (el indicador).', 'Recoge datos reales durante unos días.', 'Anota el valor base en el proyecto.'],
+    criterios: [['Indicador y valor base anotados', p => !!p.indicador && p.valor_base != null], ['Al menos una medición registrada', p => (p.mediciones || []).length > 0]],
     resultado: 'Un número de partida confiable para comparar después.',
     herramientas: ['Hoja de registro de datos', 'Mapa del proceso actual', 'Plan de recolección de datos']
   },
   analizar: {
     pregunta: '¿Por qué duele?',
     que: 'Busca las causas reales del problema, no los síntomas. Comprueba con datos cuáles pesan más.',
-    hacer: ['Lista las posibles causas: método, personas, materiales, equipos, medición y ambiente.', 'Pregunta “¿por qué?” varias veces hasta llegar a la raíz.', 'Verifica con datos cuáles causas son las más importantes.'],
+    criterios: [['Posibles causas anotadas', p => (p.causas || []).length > 0], ['Al menos una causa verificada con datos', p => (p.causas || []).some(c => c.verificada)]],
     resultado: 'Pocas causas raíz comprobadas con datos.',
     herramientas: ['Diagrama de Ishikawa (6M)', '5 Porqués', 'Pareto 80/20']
   },
   mejorar: {
     pregunta: '¿Cómo lo curamos?',
     que: 'Propón soluciones para cada causa raíz y pruébalas en pequeño antes de extenderlas.',
-    hacer: ['Propón soluciones para cada causa raíz.', 'Elige las de más impacto y menos esfuerzo.', 'Pruébalas a pequeña escala (piloto) y mide el resultado.', 'Si funciona, extiéndelas.'],
+    criterios: [['Soluciones propuestas para las causas', p => (p.soluciones || []).length > 0], ['Una solución probada en piloto que funciona', p => (p.soluciones || []).some(s => s.estado === 'funciona')]],
     resultado: 'Soluciones probadas que reducen las causas del problema.',
     herramientas: ['Lluvia de ideas', 'Matriz impacto / esfuerzo', 'Plan de piloto', 'Checklist 5S']
   },
   controlar: {
     pregunta: '¿Cómo evitamos que vuelva?',
     que: 'Deja la mejora funcionando: documenta el nuevo método y revisa el indicador con frecuencia.',
-    hacer: ['Documenta el nuevo método (procedimiento estándar).', 'Define quién revisa el indicador y cada cuánto.', 'Capacita a las personas involucradas.', 'Cuando se estabilice, cierra el proyecto y anota lo aprendido.'],
+    criterios: [['Mediciones después de la mejora', p => (p.mediciones || []).length >= 2], ['Meta alcanzada', p => avanceMeta(p) === 100], ['Nuevo método documentado y personal capacitado', null]],
     resultado: 'La mejora se mantiene y todos saben cómo hacerlo.',
     herramientas: ['Plan de control', 'Procedimiento estándar', 'Tablero de indicadores', 'Lecciones aprendidas']
   }
@@ -62,7 +62,7 @@ const participaTarea = t => t.asignado_a === yo.id || (t.participantes || []).so
 
 async function cargarMejora() {
   const [p, t] = await Promise.all([
-    cliente.from('proyectos').select('*, responsable:perfiles!responsable_id(nombre), miembros:proyecto_miembros(usuario_id, perfil:perfiles(nombre))').order('created_at', { ascending: false }),
+    cliente.from('proyectos').select('*, responsable:perfiles!responsable_id(nombre), miembros:proyecto_miembros(usuario_id, perfil:perfiles(nombre)), mediciones:proyecto_mediciones(id, fecha, valor, nota, registrado_por, created_at, autor:perfiles!registrado_por(nombre)), causas:proyecto_causas(id, categoria, descripcion, verificada, evidencia, created_by, created_at, autor:perfiles!created_by(nombre)), soluciones:proyecto_soluciones(id, causa_id, descripcion, estado, resultado, created_by, created_at, autor:perfiles!created_by(nombre))').order('created_at', { ascending: false }),
     cliente.from('proyecto_tareas').select('*, asignado:perfiles!asignado_a(nombre), participantes:proyecto_tarea_participantes(usuario_id, perfil:perfiles(nombre)), comentarios:proyecto_tarea_comentarios(id, tipo, texto, atendido_en, resultado, created_at, autor:perfiles!autor_id(nombre))').order('created_at')
   ]);
   mejoraError = (p.error || t.error) ? (p.error || t.error).message : '';
@@ -197,6 +197,7 @@ function pintarProyecto(el) {
         <div><div class="text-[11px] text-slate-500 font-semibold">META</div><div class="font-bold text-emerald-600">${fmtNum(p.valor_meta)}</div></div>
       </div>
       ${av != null ? `<div class="h-2 rounded-full bg-slate-200 overflow-hidden mt-3"><div class="h-full bg-amber-500" style="width:${av}%"></div></div><div class="text-[11px] text-slate-500 text-right mt-1">${av}% hacia la meta</div>` : ''}
+      ${htmlMediciones(p)}
     </div>` : ''}
     <div class="mt-4 flex justify-between text-[11px] font-semibold text-slate-500 mb-1"><span>${pr.hechas} de ${pr.total} tareas terminadas</span><span>${pr.pct}%</span></div>
     <div class="h-2 rounded-full bg-slate-100 overflow-hidden"><div class="h-full bg-emerald-500" style="width:${pr.pct}%"></div></div>
@@ -206,6 +207,7 @@ function pintarProyecto(el) {
       <button onclick="borrarProyecto(${p.id})" class="btn btn-del ml-auto">Eliminar</button></div>` : ''}
   </div>
   ${htmlGuiaFase(p)}
+  ${htmlCausasSoluciones(p)}
   <div class="kanban">${COLS.map(([k, n, bg]) => {
     const col = ts.filter(t => t.estado === k);
     return `<div class="col ${bg} rounded-xl p-3">
@@ -234,8 +236,8 @@ function htmlGuiaFase(p) {
       <span class="font-semibold text-amber-700 ml-1">${gu.pregunta}</span></summary>
     <div class="px-4 pb-4 text-sm text-slate-600">
       <p class="leading-relaxed">${gu.que}</p>
-      <div class="seccion mt-3 mb-1">Antes de pasar a la siguiente fase, revisa</div>
-      <ul class="list-disc pl-5 space-y-0.5">${gu.hacer.map(x => `<li>${x}</li>`).join('')}</ul>
+      <div class="seccion mt-3 mb-1">Antes de pasar a la siguiente fase</div>
+      <ul class="space-y-1">${gu.criterios.map(([t, f]) => { const ok = f ? f(p) : null; return `<li class="flex gap-2"><span class="font-bold ${ok ? 'text-emerald-600' : 'text-slate-400'}">${ok ? '✓' : (f ? '○' : '•')}</span><span class="${ok ? 'text-slate-500' : ''}">${t}</span></li>`; }).join('')}</ul>
       <div class="seccion mt-3 mb-1">Resultado esperado</div><p>${gu.resultado}</p>
       <div class="seccion mt-3 mb-1.5">Herramientas que ayudan</div>
       <div class="flex flex-wrap gap-1.5">${gu.herramientas.map(h => `<span class="chip bg-slate-100 text-slate-600">${h}</span>`).join('')}</div>
@@ -244,6 +246,133 @@ function htmlGuiaFase(p) {
           <span class="block text-xs font-bold text-amber-700 mt-1">Abrir herramienta</span></a>`).join('')}</div>`
         : `<p class="text-xs text-slate-500 mt-3">Aún no hay enlaces de herramientas para esta fase${yo.rol === 'admin' ? '. Añádelos en Biblioteca → Herramientas.' : '.'}</p>`}
     </div></details>`;
+}
+
+// --- Historial del indicador ---
+const puedeEditarReg = (p, autorId) => gestionaProyecto(p) || autorId === yo.id;
+
+function svgMediciones(p) {
+  const m = [...(p.mediciones || [])].sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id);
+  if (m.length < 2) return '';
+  const W = 320, H = 130, pl = 40, pr = 10, pt = 12, pb = 22;
+  const meta = p.valor_meta != null ? Number(p.valor_meta) : null;
+  const vals = [...m.map(x => Number(x.valor)), ...(meta != null ? [meta] : [])];
+  const min = Math.min(...vals), max = Math.max(...vals), span = (max - min) || 1;
+  const X = i => pl + i * (W - pl - pr) / (m.length - 1), Y = v => pt + (max - v) * (H - pt - pb) / span;
+  const pts = m.map((x, i) => `${X(i).toFixed(1)},${Y(Number(x.valor)).toFixed(1)}`).join(' ');
+  return `<svg viewBox="0 0 ${W} ${H}" class="w-full mt-3" role="img" aria-label="Evolución del indicador" font-family="Figtree, sans-serif">
+    <line x1="${pl}" x2="${pl}" y1="${pt}" y2="${H - pb}" stroke="#cbd5e1"/><line x1="${pl}" x2="${W - pr}" y1="${H - pb}" y2="${H - pb}" stroke="#cbd5e1"/>
+    ${meta != null ? `<line x1="${pl}" x2="${W - pr}" y1="${Y(meta).toFixed(1)}" y2="${Y(meta).toFixed(1)}" stroke="#059669" stroke-dasharray="4 3"/><text x="${W - pr}" y="${(Y(meta) - 3).toFixed(1)}" text-anchor="end" font-size="9" fill="#059669">Meta</text>` : ''}
+    <polyline points="${pts}" fill="none" stroke="#F59E0B" stroke-width="2"/>
+    ${m.map((x, i) => `<circle cx="${X(i).toFixed(1)}" cy="${Y(Number(x.valor)).toFixed(1)}" r="3" fill="#0B1320"/>`).join('')}
+    <text x="${pl - 4}" y="${pt + 3}" text-anchor="end" font-size="9" fill="#64748b">${fmtNum(max)}</text>
+    <text x="${pl - 4}" y="${H - pb}" text-anchor="end" font-size="9" fill="#64748b">${fmtNum(min)}</text>
+    <text x="${pl}" y="${H - 6}" font-size="9" fill="#64748b">${formFecha(m[0].fecha)}</text>
+    <text x="${W - pr}" y="${H - 6}" text-anchor="end" font-size="9" fill="#64748b">${formFecha(m[m.length - 1].fecha)}</text></svg>`;
+}
+function htmlMediciones(p) {
+  if (!p.indicador) return '';
+  const m = [...(p.mediciones || [])].sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id - a.id);
+  return `${svgMediciones(p)}
+    <div class="flex items-center justify-between mt-3"><span class="seccion">Mediciones (${m.length})</span>
+      <button onclick="formMedicion(${p.id})" class="btn btn-sec btn-sm">+ Medición</button></div>
+    ${m.slice(0, 5).map(x => `<div class="flex items-start gap-2 py-1.5 border-b border-slate-100 last:border-0 text-sm">
+      <span class="text-xs text-slate-500 w-16 flex-none">${formFecha(x.fecha)}</span><b class="w-16 flex-none">${fmtNum(x.valor)}</b>
+      <span class="flex-1 text-xs text-slate-500">${esc(x.nota || '')} <span class="text-slate-400">${esc(x.autor?.nombre || '')}</span></span>
+      ${puedeEditarReg(p, x.registrado_por) ? `<button onclick="borrarMedicion(${x.id})" class="text-slate-400 hover:text-red-600" aria-label="Eliminar medición">${ico('trash', 'w-4 h-4')}</button>` : ''}</div>`).join('')}
+    ${m.length > 5 ? `<p class="text-[11px] text-slate-500 mt-1">Se muestran las 5 más recientes.</p>` : ''}`;
+}
+function formMedicion(pid) {
+  const p = proyectos.find(x => x.id === pid);
+  abrirSheet('Nueva medición', `
+    <p class="text-sm text-slate-500 mb-3">${esc(p.indicador)}</p>
+    ${fila(campo('me-fecha', 'Fecha', { type: 'date', val: isoHoy() }), campo('me-valor', 'Valor medido', { type: 'number', extra: 'step="any"' }))}
+    ${campo('me-nota', 'Nota (opcional)', { ph: 'Ej. semana 2, después del piloto' })}
+    <button onclick="lock(this,()=>guardarMedicion(${pid}))" class="btn btn-pri w-full !py-3">Guardar</button>`);
+}
+async function guardarMedicion(pid) {
+  const valor = num('me-valor');
+  if (valor == null || Number.isNaN(valor)) return toast('Escribe el valor medido.', true);
+  if (!await db(cliente.from('proyecto_mediciones').insert({ proyecto_id: pid, fecha: val('me-fecha') || isoHoy(), valor, nota: nul('me-nota') }))) return;
+  cerrarSheet(); toast('Medición guardada'); await refrescarMejora();
+}
+async function borrarMedicion(id) {
+  if (!confirm('¿Eliminar esta medición?')) return;
+  if (!await db(cliente.from('proyecto_mediciones').delete().eq('id', id))) return;
+  await refrescarMejora();
+}
+
+// --- Causas raíz y soluciones ---
+const CAT6M = [['metodos', 'Métodos'], ['mano_obra', 'Mano de obra'], ['materiales', 'Materiales'], ['maquinas', 'Máquinas'], ['medicion', 'Medición'], ['medio_ambiente', 'Medio ambiente']];
+const EST_SOL = { propuesta: ['Propuesta', 'b-gris'], en_piloto: ['En piloto', 'b-ambar'], funciona: ['Funciona', 'b-verde'], descartada: ['Descartada', 'b-rojo'] };
+const recorte = (s, n) => s.length > n ? s.slice(0, n - 1) + '…' : s;
+
+function htmlCausasSoluciones(p) {
+  const causas = [...(p.causas || [])].sort(porFecha), sols = [...(p.soluciones || [])].sort(porFecha);
+  const abierto = ['analizar', 'mejorar'].includes(p.fase) || causas.length || sols.length;
+  const lapiz = (fn, id) => `<button onclick="${fn}(${p.id},${id})" class="text-slate-400 hover:text-slate-700" aria-label="Editar">${ico('pencil', 'w-4 h-4')}</button>`;
+  return `<details class="card mb-4" ${abierto ? 'open' : ''}>
+    <summary class="p-4 cursor-pointer select-none font-bold text-slate-800">Causas y soluciones <span class="font-normal text-slate-500">(${causas.length} causas · ${sols.length} soluciones)</span></summary>
+    <div class="px-4 pb-4">
+      <div class="flex items-center justify-between"><span class="seccion">Causas del problema</span><button onclick="formCausa(${p.id})" class="btn btn-sec btn-sm">+ Causa</button></div>
+      ${causas.length ? causas.map(c => `<div class="py-2 border-b border-slate-100 last:border-0">
+          <div class="flex items-center gap-1.5 flex-wrap"><span class="chip bg-indigo-50 text-indigo-700">${CAT6M.find(x => x[0] === c.categoria)?.[1] || c.categoria}</span>
+            <span class="chip ${c.verificada ? 'b-verde' : 'b-gris'}">${c.verificada ? 'Verificada con datos' : 'Sin verificar'}</span>
+            ${puedeEditarReg(p, c.created_by) ? `<span class="ml-auto">${lapiz('formCausa', c.id)}</span>` : ''}</div>
+          <p class="text-sm text-slate-700 mt-1 whitespace-pre-wrap">${esc(c.descripcion)}</p>
+          ${c.evidencia ? `<p class="text-xs text-slate-500 mt-0.5">Evidencia: ${esc(c.evidencia)}</p>` : ''}</div>`).join('')
+        : '<p class="text-xs text-slate-500 py-2">Aún no hay causas. Anota las que se te ocurran y luego verifica cuáles se confirman con datos.</p>'}
+      <div class="flex items-center justify-between mt-4"><span class="seccion">Soluciones</span><button onclick="formSolucion(${p.id})" class="btn btn-sec btn-sm">+ Solución</button></div>
+      ${sols.length ? sols.map(s => { const [en, cl] = EST_SOL[s.estado], causa = causas.find(c => c.id === s.causa_id); return `<div class="py-2 border-b border-slate-100 last:border-0">
+          <div class="flex items-center gap-1.5 flex-wrap"><span class="chip ${cl}">${en}</span>
+            ${puedeEditarReg(p, s.created_by) ? `<span class="ml-auto">${lapiz('formSolucion', s.id)}</span>` : ''}</div>
+          <p class="text-sm text-slate-700 mt-1 whitespace-pre-wrap">${esc(s.descripcion)}</p>
+          ${causa ? `<p class="text-xs text-slate-500 mt-0.5">Para la causa: ${esc(recorte(causa.descripcion, 70))}</p>` : ''}
+          ${s.resultado ? `<p class="text-xs text-slate-500 mt-0.5">Resultado: ${esc(s.resultado)}</p>` : ''}</div>`; }).join('')
+        : '<p class="text-xs text-slate-500 py-2">Aún no hay soluciones. Propón una por cada causa verificada y pruébala en pequeño antes de extenderla.</p>'}
+    </div></details>`;
+}
+function formCausa(pid, id) {
+  const c = id ? proyectos.find(p => p.id === pid).causas.find(x => x.id === id) : {};
+  abrirSheet(id ? 'Editar causa' : 'Nueva causa', `
+    ${lista('ca-cat', 'Categoría', CAT6M, c.categoria || 'metodos')}
+    ${area('ca-desc', '¿Qué causa el problema?', c.descripcion, 3)}
+    ${lista('ca-ver', '¿La verificaste con datos?', [['no', 'No, todavía'], ['si', 'Sí']], c.verificada ? 'si' : 'no')}
+    ${area('ca-ev', 'Dato o evidencia que la respalda (opcional)', c.evidencia, 2)}
+    <button onclick="lock(this,()=>guardarCausa(${pid},${id || 0}))" class="btn btn-pri w-full !py-3">Guardar</button>
+    ${id ? `<button onclick="borrarCausa(${id})" class="btn btn-del w-full mt-2">Eliminar causa</button>` : ''}`);
+}
+async function guardarCausa(pid, id) {
+  if (!val('ca-desc')) return toast('Describe la causa.', true);
+  const f = { categoria: val('ca-cat'), descripcion: val('ca-desc'), verificada: val('ca-ver') === 'si', evidencia: nul('ca-ev') };
+  if (!await db(id ? cliente.from('proyecto_causas').update(f).eq('id', id) : cliente.from('proyecto_causas').insert({ ...f, proyecto_id: pid }))) return;
+  cerrarSheet(); toast('Causa guardada'); await refrescarMejora();
+}
+async function borrarCausa(id) {
+  if (!confirm('¿Eliminar esta causa? Las soluciones ligadas quedan sin causa.')) return;
+  if (!await db(cliente.from('proyecto_causas').delete().eq('id', id))) return;
+  cerrarSheet(); await refrescarMejora();
+}
+function formSolucion(pid, id) {
+  const p = proyectos.find(x => x.id === pid), s = id ? p.soluciones.find(x => x.id === id) : {};
+  abrirSheet(id ? 'Editar solución' : 'Nueva solución', `
+    ${area('so-desc', '¿Qué se va a hacer?', s.descripcion, 3)}
+    ${lista('so-causa', 'Para qué causa', [['', '— Sin causa asignada —'], ...(p.causas || []).map(c => [c.id, recorte(c.descripcion, 60)])], s.causa_id || '')}
+    ${lista('so-est', 'Estado', Object.entries(EST_SOL).map(([k, v]) => [k, v[0]]), s.estado || 'propuesta')}
+    ${area('so-res', 'Resultado del piloto (opcional)', s.resultado, 2)}
+    <button onclick="lock(this,()=>guardarSolucion(${pid},${id || 0}))" class="btn btn-pri w-full !py-3">Guardar</button>
+    ${id ? `<button onclick="borrarSolucion(${id})" class="btn btn-del w-full mt-2">Eliminar solución</button>` : ''}`);
+}
+async function guardarSolucion(pid, id) {
+  if (!val('so-desc')) return toast('Describe la solución.', true);
+  const f = { descripcion: val('so-desc'), causa_id: val('so-causa') ? Number(val('so-causa')) : null, estado: val('so-est'), resultado: nul('so-res') };
+  if (!await db(id ? cliente.from('proyecto_soluciones').update(f).eq('id', id) : cliente.from('proyecto_soluciones').insert({ ...f, proyecto_id: pid }))) return;
+  cerrarSheet(); toast('Solución guardada'); await refrescarMejora();
+}
+async function borrarSolucion(id) {
+  if (!confirm('¿Eliminar esta solución?')) return;
+  if (!await db(cliente.from('proyecto_soluciones').delete().eq('id', id))) return;
+  cerrarSheet(); await refrescarMejora();
 }
 
 function cardTarea(t, conProyecto) {
@@ -350,7 +479,7 @@ function formProyecto(id) {
     ${fila(campo('p-ini', 'Inicio', { type: 'date', val: p.fecha_inicio }), campo('p-meta', 'Fecha meta', { type: 'date', val: p.fecha_meta }))}
     <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mt-1 mb-2">Indicador (opcional)</div>
     ${campo('p-ind', 'Qué se mide', { val: p.indicador, ph: 'Ej. Minutos por despacho' })}
-    ${fila(campo('p-base', 'Valor base', { type: 'number', val: p.valor_base ?? '', extra: 'step="any"' }), campo('p-actual', 'Valor actual', { type: 'number', val: p.valor_actual ?? '', extra: 'step="any"' }))}
+    ${fila(campo('p-base', 'Valor base', { type: 'number', val: p.valor_base ?? '', extra: 'step="any"' }), campo('p-actual', 'Valor actual (sigue a las mediciones)', { type: 'number', val: p.valor_actual ?? '', extra: 'step="any"' }))}
     ${campo('p-vmeta', 'Valor meta', { type: 'number', val: p.valor_meta ?? '', extra: 'step="any"' })}
     <button onclick="lock(this,()=>guardarProyecto(${id || 0}))" class="btn btn-pri w-full !py-3 mt-2">Guardar</button>`);
 }
@@ -380,6 +509,11 @@ async function sincronizar(tabla, colPadre, padreId, antes, ahora) {
 async function cambiarFase(pid, fase) {
   const p = proyectos.find(x => x.id === pid);
   if (!p || p.fase === fase) return;
+  // Al avanzar, avisa qué le falta a la fase actual (no bloquea: quien gestiona decide)
+  if (FASES.findIndex(f => f[0] === fase) > FASES.findIndex(f => f[0] === p.fase)) {
+    const falta = GUIA[p.fase].criterios.filter(([, f]) => f && !f(p)).map(([t]) => t);
+    if (falta.length && !confirm(`En ${faseNombre(p.fase)} aún falta:\n• ${falta.join('\n• ')}\n\n¿Pasar a ${faseNombre(fase)} de todos modos?`)) return;
+  }
   if (!await db(cliente.from('proyectos').update({ fase }).eq('id', pid))) return;
   await refrescarMejora();
 }
