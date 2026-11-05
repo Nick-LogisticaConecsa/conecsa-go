@@ -277,8 +277,45 @@ function htmlIncidencias() {
       ${editaFlota() ? `<button onclick="formIncidencia()" class="btn btn-acc ml-auto !rounded-full !py-1.5">+ Reportar</button>` : ''}
     </div>
     ${pillsSuc(fSuc, 'setFSuc')}
+    ${htmlParetoSistemas()}
     ${l.length ? l.map(cardIncidencia).join('') : `<p class="vacio">${fInc === 'abiertas' ? 'Sin incidencias abiertas.' : 'Aún no hay incidencias resueltas.'}</p>`}`;
 }
+// Pareto: qué sistemas concentran las fallas de los últimos 90 días (el 80/20 de la mejora continua)
+function paretoSistemas() {
+  const desde = Date.now() - 90 * 864e5, cont = {};
+  const l = incidencias.filter(i => i.sistema && new Date(i.fecha_reporte).getTime() >= desde && mismaSuc(i.vehiculo?.sucursal, fSuc));
+  l.forEach(i => { cont[i.sistema] = (cont[i.sistema] || 0) + 1; });
+  return { total: l.length, filas: Object.entries(cont).sort((a, b) => b[1] - a[1]) };
+}
+function htmlParetoSistemas() {
+  const { total, filas } = paretoSistemas();
+  if (total < 3) return '';
+  const max = filas[0][1], puedeProy = typeof puedeCrearProyecto === 'function' && puedeCrearProyecto();
+  let acum = 0;
+  return `<div class="card p-4 mb-4">
+    <div class="font-bold text-slate-800">Qué sistemas fallan más</div>
+    <p class="text-xs text-slate-500 mb-3">Últimos 90 días${fSuc ? ' · ' + esc(fSuc) : ''}. Las filas en ámbar suman cerca del 80% de las fallas: conviene atacarlas primero.</p>
+    ${filas.map(([s, n]) => {
+      const prior = acum * 100 / total < 80; acum += n;
+      return `<div class="mb-2"><div class="flex justify-between text-xs mb-0.5"><span class="font-semibold ${prior ? 'text-slate-800' : 'text-slate-500'}">${esc(s)}</span><span class="text-slate-500">${n} · acumulado ${Math.round(acum * 100 / total)}%</span></div>
+        <div class="h-2 rounded-full bg-slate-100 overflow-hidden"><div class="h-full ${prior ? 'bg-amber-500' : 'bg-slate-300'}" style="width:${Math.round(n * 100 / max)}%"></div></div></div>`;
+    }).join('')}
+    ${puedeProy ? `<button onclick="proyectoPorSistema()" class="btn btn-acc btn-sm mt-2">Crear proyecto para “${esc(filas[0][0])}”</button>` : ''}</div>`;
+}
+function proyectoPorSistema() {
+  const { total, filas } = paretoSistemas(), [sis, n] = filas[0];
+  proponerProyecto({ nombre: `Reducir fallas de ${sis} en la flota${fSuc ? ' de ' + fSuc : ''}`,
+    descripcion: `${sis} concentra ${n} de ${total} fallas (${Math.round(n * 100 / total)}%) en los últimos 90 días${fSuc ? ' en ' + fSuc : ''}.`,
+    area: 'Flota', sucursal: fSuc || '', indicador: `Fallas de ${sis} por mes`, valor_base: Math.round(n / 3 * 10) / 10 });
+}
+function proyectoPorIncidencia(id) {
+  const i = incidencias.find(x => x.id === id), placa = i.vehiculo?.placa || '';
+  const n = incidencias.filter(x => x.vehiculo_id === i.vehiculo_id && x.sistema === i.sistema && Date.now() - new Date(x.fecha_reporte).getTime() <= 90 * 864e5).length;
+  proponerProyecto({ nombre: `Reducir fallas de ${i.sistema} en ${placa}`,
+    descripcion: `La unidad ${placa} tuvo ${n} fallas de ${i.sistema} en los últimos 90 días (última: ${i.titulo}).`,
+    area: 'Flota', sucursal: i.vehiculo?.sucursal || '', indicador: `Fallas de ${i.sistema} por mes` });
+}
+
 function cardIncidencia(i) {
   const [en, ec] = ESTADOS_INC[i.estado], res = i.estado === 'resuelta';
   return `<div class="card p-4 mb-3">
@@ -295,6 +332,7 @@ function cardIncidencia(i) {
     </div>
     ${i.descripcion ? `<p class="text-sm text-slate-600 mt-2 leading-snug whitespace-pre-wrap">${esc(i.descripcion)}</p>` : ''}
     <div class="text-xs text-slate-500 mt-2">Reportado ${fmtFH(i.fecha_reporte)}${i.reportado_por ? ' por ' + esc(i.reportado_por) : ''}${i.km_reporte != null ? ' · ' + fmtNum(i.km_reporte) + ' km' : ''}</div>
+    ${i.reincidente && i.sistema && typeof puedeCrearProyecto === 'function' && puedeCrearProyecto() ? `<button onclick="proyectoPorIncidencia(${i.id})" class="btn btn-sec btn-sm mt-3">Proponer proyecto de mejora</button>` : ''}
     ${res ? `<div class="mt-3 bg-emerald-50 rounded-lg p-3 text-sm">
       <div class="text-[11px] font-bold text-emerald-700 uppercase tracking-wider mb-1">Solución</div>
       <div class="text-slate-700 whitespace-pre-wrap">${esc(i.solucion || 'Sin detalle')}</div>

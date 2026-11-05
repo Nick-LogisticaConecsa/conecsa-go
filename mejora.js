@@ -52,8 +52,10 @@ let guiaAbierta = true;
 
 let proyectos = [], ptareas = [], mejoraLista = false, mejoraError = '';
 let mjVista = 'proyectos', proyId = null, mjFiltro = 'activo';
+let ideas = [], proyBase = null;           // ideas del buzón; datos de partida del proyecto que se está creando (nuevo ciclo, idea, Flota)
 
 const puedeCrearProyecto = () => !!yo && (['admin', 'jefatura'].includes(yo.rol) || puede('mejora', 'editar'));
+const puedeRevisarIdeas = () => puedeCrearProyecto();
 const gestionaProyecto = p => !!p && !!yo && (yo.rol === 'admin' || p.created_by === yo.id || p.responsable_id === yo.id);
 const faseNombre = k => FASES.find(f => f[0] === k)?.[2] || k;
 const aplazoPendiente = t => (t.comentarios || []).find(c => c.tipo === 'aplazo_solicitud' && !c.atendido_en);
@@ -61,18 +63,21 @@ const solicitudesPorResolver = () => ptareas.filter(t => aplazoPendiente(t) && g
 const participaTarea = t => t.asignado_a === yo.id || (t.participantes || []).some(x => x.usuario_id === yo.id);
 
 async function cargarMejora() {
-  const [p, t] = await Promise.all([
+  const [p, t, i] = await Promise.all([
     cliente.from('proyectos').select('*, responsable:perfiles!responsable_id(nombre), miembros:proyecto_miembros(usuario_id, perfil:perfiles(nombre)), mediciones:proyecto_mediciones(id, fecha, valor, nota, registrado_por, created_at, autor:perfiles!registrado_por(nombre)), causas:proyecto_causas(id, categoria, descripcion, verificada, evidencia, created_by, created_at, autor:perfiles!created_by(nombre)), soluciones:proyecto_soluciones(id, causa_id, descripcion, estado, resultado, created_by, created_at, autor:perfiles!created_by(nombre))').order('created_at', { ascending: false }),
-    cliente.from('proyecto_tareas').select('*, asignado:perfiles!asignado_a(nombre), participantes:proyecto_tarea_participantes(usuario_id, perfil:perfiles(nombre)), comentarios:proyecto_tarea_comentarios(id, tipo, texto, atendido_en, resultado, created_at, autor:perfiles!autor_id(nombre))').order('created_at')
+    cliente.from('proyecto_tareas').select('*, asignado:perfiles!asignado_a(nombre), participantes:proyecto_tarea_participantes(usuario_id, perfil:perfiles(nombre)), comentarios:proyecto_tarea_comentarios(id, tipo, texto, atendido_en, resultado, created_at, autor:perfiles!autor_id(nombre))').order('created_at'),
+    cliente.from('ideas').select('*, autor:perfiles!created_by(nombre)').order('created_at', { ascending: false })
   ]);
-  mejoraError = (p.error || t.error) ? (p.error || t.error).message : '';
-  proyectos = p.data || []; ptareas = t.data || [];
+  const err = p.error || t.error || i.error;
+  mejoraError = err ? err.message : '';
+  proyectos = p.data || []; ptareas = t.data || []; ideas = i.data || [];
   mejoraLista = true;
   actualizarBadgeMejora();
 }
 // Pendientes propios + solicitudes de aplazo por resolver
 function actualizarBadgeMejora() {
-  const n = ptareas.filter(t => t.asignado_a === yo.id && t.estado !== 'hecha').length + solicitudesPorResolver().length;
+  const n = ptareas.filter(t => t.asignado_a === yo.id && t.estado !== 'hecha').length + solicitudesPorResolver().length
+    + (puedeRevisarIdeas() ? ideas.filter(x => x.estado === 'nueva').length : 0);
   $('badge-mejora').textContent = n; $('badge-mejora').classList.toggle('hidden', !n);
 }
 async function precargarMejora() { await cargarMejora(); }
@@ -95,12 +100,13 @@ function pintarMejora() {
   proyId = null;
 
   const mias = ptareas.filter(t => t.asignado_a === yo.id && t.estado !== 'hecha').length;
-  const cab = `<div class="flex gap-2 mb-4 items-center">
+  const cab = `<div class="flex gap-2 mb-4 items-center overflow-x-auto scroll-x">
       <button onclick="mjVista='proyectos';pintarMejora()" class="seg ${mjVista === 'proyectos' ? 'seg-on' : 'seg-off'}">Proyectos</button>
       <button onclick="mjVista='mias';pintarMejora()" class="seg ${mjVista === 'mias' ? 'seg-on' : 'seg-off'}">Mis tareas${mias ? ` (${mias})` : ''}</button>
-      ${puedeCrearProyecto() ? `<button onclick="formProyecto()" class="btn btn-acc ml-auto !rounded-full !py-1.5">+ Proyecto</button>` : ''}
+      <button onclick="mjVista='ideas';pintarMejora()" class="seg ${mjVista === 'ideas' ? 'seg-on' : 'seg-off'}">Ideas</button>
+      ${puedeCrearProyecto() ? `<button onclick="formProyecto()" class="btn btn-acc ml-auto flex-none whitespace-nowrap !rounded-full !py-1.5">+ Proyecto</button>` : ''}
     </div>`;
-  el.innerHTML = `<div class="max-w-2xl mx-auto">${cab}${htmlAlertaAplazos()}${mjVista === 'mias' ? htmlMisTareas() : htmlProyectos()}</div>`;
+  el.innerHTML = `<div class="max-w-2xl mx-auto">${cab}${htmlAlertaAplazos()}${mjVista === 'mias' ? htmlMisTareas() : mjVista === 'ideas' ? htmlIdeas() : htmlProyectos()}</div>`;
 }
 
 // Alerta para quien gestiona el proyecto: el responsable de una tarea pidió aplazarla
@@ -204,8 +210,10 @@ function pintarProyecto(el) {
     ${g ? `<div class="flex flex-wrap gap-2 mt-4">
       <button onclick="formProyecto(${p.id})" class="btn btn-sec">Editar proyecto</button>
       <button onclick="formPTarea(${p.id})" class="btn btn-acc">+ Tarea</button>
+      ${p.estado !== 'cerrado' ? `<button onclick="formCierre(${p.id})" class="btn btn-pri">Cerrar proyecto</button>` : ''}
       <button onclick="borrarProyecto(${p.id})" class="btn btn-del ml-auto">Eliminar</button></div>` : ''}
   </div>
+  ${htmlCierre(p, g)}
   ${htmlGuiaFase(p)}
   ${htmlCausasSoluciones(p)}
   <div class="kanban">${COLS.map(([k, n, bg]) => {
@@ -221,8 +229,10 @@ function pintarProyecto(el) {
 function htmlActa(p, g) {
   const campos = [['Problema', p.descripcion], ['Objetivo', p.objetivo], ['Alcance', p.alcance], ['Beneficio esperado', p.beneficio]].filter(c => c[1]);
   const pat = usuarios.find(u => u.id === p.patrocinador_id)?.nombre;
-  if (!campos.length && !pat) return g ? '<p class="text-xs text-slate-500 mt-3">Completa el acta del proyecto (problema, objetivo y alcance) con “Editar proyecto”.</p>' : '';
-  return `<div class="mt-3 space-y-2">${campos.map(([t, v]) => `<div><div class="seccion">${t}</div><p class="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">${esc(v)}</p></div>`).join('')}
+  const previo = proyectos.find(x => x.id === p.ciclo_de);
+  const ciclo = previo ? `<p class="text-xs font-semibold text-slate-500 mt-2">Nuevo ciclo de: ${esc(previo.nombre)}</p>` : '';
+  if (!campos.length && !pat) return ciclo + (g ? '<p class="text-xs text-slate-500 mt-3">Completa el acta del proyecto (problema, objetivo y alcance) con “Editar proyecto”.</p>' : '');
+  return `${ciclo}<div class="mt-3 space-y-2">${campos.map(([t, v]) => `<div><div class="seccion">${t}</div><p class="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">${esc(v)}</p></div>`).join('')}
     ${pat ? `<div><div class="seccion">Patrocinador</div><p class="text-sm text-slate-600">${esc(pat)}</p></div>` : ''}</div>`;
 }
 
@@ -246,6 +256,112 @@ function htmlGuiaFase(p) {
           <span class="block text-xs font-bold text-amber-700 mt-1">Abrir herramienta</span></a>`).join('')}</div>`
         : `<p class="text-xs text-slate-500 mt-3">Aún no hay enlaces de herramientas para esta fase${yo.rol === 'admin' ? '. Añádelos en Biblioteca → Herramientas.' : '.'}</p>`}
     </div></details>`;
+}
+
+// --- Cierre del proyecto y nuevo ciclo ---
+const LOGRO = { si: ['Meta alcanzada', 'b-verde'], parcial: ['Meta lograda en parte', 'b-ambar'], no: ['Meta no alcanzada', 'b-rojo'] };
+
+function htmlCierre(p, g) {
+  if (p.estado !== 'cerrado') return '';
+  const lg = LOGRO[p.logro];
+  return `<div class="card p-4 mb-4 border-emerald-200 bg-emerald-50/40">
+    <div class="flex items-center gap-2 flex-wrap"><span class="font-bold text-slate-800">Proyecto cerrado</span>${lg ? `<span class="chip ${lg[1]}">${lg[0]}</span>` : ''}
+      ${p.cerrado_en ? `<span class="text-xs text-slate-500 ml-auto">${fmtFH(p.cerrado_en)}</span>` : ''}</div>
+    ${p.resultado ? `<div class="seccion mt-3">Resultado</div><p class="text-sm text-slate-700 whitespace-pre-wrap">${esc(p.resultado)}</p>` : ''}
+    ${p.lecciones ? `<div class="seccion mt-3">Lecciones aprendidas</div><p class="text-sm text-slate-700 whitespace-pre-wrap">${esc(p.lecciones)}</p>` : ''}
+    ${g ? `<div class="flex flex-wrap gap-2 mt-4"><button onclick="nuevoCiclo(${p.id})" class="btn btn-acc">Iniciar nuevo ciclo</button>
+      <button onclick="reabrirProyecto(${p.id})" class="btn btn-sec">Reabrir</button></div>` : ''}</div>`;
+}
+function formCierre(pid) {
+  const p = proyectos.find(x => x.id === pid), pr = progreso(pid), av = avanceMeta(p), pend = pr.total - pr.hechas;
+  abrirSheet('Cerrar proyecto', `
+    <div class="bg-slate-50 rounded-lg p-3 text-sm text-slate-600 mb-3">
+      ${p.indicador ? `<div>${esc(p.indicador)}: base <b>${fmtNum(p.valor_base)}</b> → actual <b>${fmtNum(p.valor_actual)}</b> · meta <b>${fmtNum(p.valor_meta)}</b>${av != null ? ` (${av}% hacia la meta)` : ''}</div>` : '<div>Este proyecto no tiene indicador.</div>'}
+      <div class="mt-1">Tareas terminadas: ${pr.hechas} de ${pr.total}${pend ? ` <b class="text-amber-700">(quedan ${pend} sin terminar)</b>` : ''}</div></div>
+    ${lista('ci-logro', '¿Se alcanzó la meta?', [['si', 'Sí, se alcanzó'], ['parcial', 'En parte'], ['no', 'No se alcanzó']], p.logro || (av == null ? 'parcial' : av >= 100 ? 'si' : av >= 50 ? 'parcial' : 'no'))}
+    ${area('ci-res', 'Resultado: ¿qué cambió? (con números)', p.resultado, 3)}
+    ${area('ci-lec', 'Lecciones aprendidas: ¿qué funcionó, qué no y qué haríamos distinto?', p.lecciones, 4)}
+    <button onclick="lock(this,()=>guardarCierre(${pid}))" class="btn btn-pri w-full !py-3">Cerrar proyecto</button>`);
+}
+async function guardarCierre(pid) {
+  if (!val('ci-lec')) return toast('Escribe al menos una lección aprendida.', true);
+  const f = { estado: 'cerrado', logro: val('ci-logro'), resultado: nul('ci-res'), lecciones: val('ci-lec'), cerrado_en: new Date().toISOString() };
+  if (!await db(cliente.from('proyectos').update(f).eq('id', pid))) return;
+  cerrarSheet(); toast('Proyecto cerrado'); await refrescarMejora();
+}
+async function reabrirProyecto(pid) {
+  if (!confirm('¿Reabrir el proyecto? Se conservan el resultado y las lecciones.')) return;
+  if (!await db(cliente.from('proyectos').update({ estado: 'activo', cerrado_en: null }).eq('id', pid))) return;
+  await refrescarMejora();
+}
+// Nuevo ciclo: parte del cierre anterior (misma gente e indicador; el valor actual pasa a ser la nueva base)
+function nuevoCiclo(pid) {
+  const p = proyectos.find(x => x.id === pid), base = p.nombre.replace(/ \(ciclo \d+\)$/, '');
+  const n = Number(p.nombre.match(/\(ciclo (\d+)\)$/)?.[1] || 1) + 1;
+  formProyecto(0, { nombre: `${base} (ciclo ${n})`, area: p.area, sucursal: p.sucursal, responsable_id: p.responsable_id, patrocinador_id: p.patrocinador_id,
+    indicador: p.indicador, valor_base: p.valor_actual, miembros: p.miembros, cicloDe: pid });
+}
+// Abre el formulario de proyecto con datos de partida (desde una idea o desde Flota)
+async function proponerProyecto(base) {
+  irTab('mejora'); await abrirMejora();
+  formProyecto(0, base);
+}
+
+// --- Buzón de ideas (Kaizen): todos proponen, jefatura revisa ---
+const EST_IDEA = { nueva: ['Nueva', 'b-ambar'], en_revision: ['En revisión', 'b-gris'], proyecto: ['Convertida en proyecto', 'b-verde'], descartada: ['Descartada', 'b-rojo'] };
+
+function htmlIdeas() {
+  const rev = puedeRevisarIdeas();
+  const cab = `<div class="flex items-center justify-between gap-3 mb-3"><p class="text-sm text-slate-500">${rev ? 'Ideas enviadas por el equipo.' : 'Cuéntanos qué se podría mejorar. Jefatura la revisa y te responde.'}</p>
+    <button onclick="formIdea()" class="btn btn-acc btn-sm flex-none">+ Idea</button></div>`;
+  if (!ideas.length) return cab + '<p class="vacio">Aún no hay ideas. Una idea pequeña también cuenta.</p>';
+  return cab + ideas.map(x => {
+    const [en, cl] = EST_IDEA[x.estado], mia = x.created_by === yo.id;
+    return `<div class="card p-4 mb-3">
+      <div class="flex items-start justify-between gap-2"><span class="font-bold text-slate-800 leading-snug">${esc(x.titulo)}</span><span class="chip ${cl} flex-none">${en}</span></div>
+      ${x.descripcion ? `<p class="text-sm text-slate-600 mt-1 whitespace-pre-wrap leading-snug">${esc(x.descripcion)}</p>` : ''}
+      <div class="meta mt-2">${esc(x.autor?.nombre || '—')}${x.sucursal ? ' · ' + esc(x.sucursal) : ''} · ${fmtFH(x.created_at)}</div>
+      ${x.respuesta ? `<div class="mt-2 bg-slate-50 rounded-lg p-2.5 text-sm text-slate-700"><div class="seccion">Respuesta</div>${esc(x.respuesta)}</div>` : ''}
+      ${x.proyecto_id && proyectos.some(p => p.id === x.proyecto_id) ? `<button onclick="mjVista='proyectos';abrirProyecto(${x.proyecto_id})" class="text-xs font-bold text-amber-700 mt-2">Ver el proyecto</button>` : ''}
+      <div class="flex flex-wrap gap-2 mt-3">
+        ${rev && x.estado !== 'proyecto' ? `<button onclick="ideaAProyecto(${x.id})" class="btn btn-acc btn-sm">Convertir en proyecto</button><button onclick="formRevisarIdea(${x.id})" class="btn btn-sec btn-sm">Responder</button>` : ''}
+        ${mia && x.estado === 'nueva' ? `<button onclick="borrarIdea(${x.id})" class="btn btn-del btn-sm ml-auto" aria-label="Eliminar">${ico('trash', 'w-4 h-4')}</button>` : ''}</div></div>`;
+  }).join('');
+}
+function formIdea() {
+  abrirSheet('Nueva idea de mejora', `
+    ${campo('id-titulo', '¿Qué se podría mejorar?', { ph: 'Ej. Etiquetar los estantes del almacén' })}
+    ${area('id-desc', 'Cuéntanos más: qué pasa hoy y cómo lo mejorarías (opcional)', '', 3)}
+    ${lista('id-suc', 'Sucursal', [['', 'Todas'], ...SUCURSALES.map(s => [s, s])], yo.sucursal || '')}
+    <button onclick="lock(this,()=>guardarIdea())" class="btn btn-pri w-full !py-3">Enviar idea</button>`);
+}
+async function guardarIdea() {
+  if (!val('id-titulo')) return toast('Escribe tu idea en pocas palabras.', true);
+  if (!await db(cliente.from('ideas').insert({ titulo: val('id-titulo'), descripcion: nul('id-desc'), sucursal: nul('id-suc') }))) return;
+  cerrarSheet(); toast('Idea enviada. ¡Gracias!'); mjVista = 'ideas'; await refrescarMejora();
+}
+async function borrarIdea(id) {
+  if (!confirm('¿Eliminar esta idea?')) return;
+  if (!await db(cliente.from('ideas').delete().eq('id', id))) return;
+  await refrescarMejora();
+}
+function formRevisarIdea(id) {
+  const x = ideas.find(i => i.id === id);
+  abrirSheet('Responder idea', `
+    <p class="text-sm font-semibold text-slate-700 mb-3">${esc(x.titulo)}</p>
+    ${lista('ir-est', 'Estado', [['nueva', 'Nueva'], ['en_revision', 'En revisión'], ['descartada', 'Descartada']], x.estado)}
+    ${area('ir-res', 'Respuesta para quien la envió', x.respuesta, 3)}
+    <button onclick="lock(this,()=>guardarRevisionIdea(${id}))" class="btn btn-pri w-full !py-3">Guardar</button>`);
+}
+async function guardarRevisionIdea(id) {
+  const f = { estado: val('ir-est'), respuesta: nul('ir-res'), atendida_por: yo.id, atendida_en: new Date().toISOString() };
+  if (!await db(cliente.from('ideas').update(f).eq('id', id))) return;
+  cerrarSheet(); toast('Respuesta guardada'); await refrescarMejora();
+}
+// La idea pasa a ser un proyecto; quien la envió queda como participante
+function ideaAProyecto(id) {
+  const x = ideas.find(i => i.id === id);
+  proponerProyecto({ nombre: x.titulo, descripcion: x.descripcion || '', sucursal: x.sucursal || '', ideaId: id, miembros: x.created_by !== yo.id ? [{ usuario_id: x.created_by }] : [] });
 }
 
 // --- Historial del indicador ---
@@ -460,8 +576,9 @@ function personasProyecto(pid, extra = []) {
   return usuarios.filter(u => ids.has(u.id));
 }
 
-function formProyecto(id) {
-  const p = id ? proyectos.find(x => x.id === id) : {};
+function formProyecto(id, base) {
+  const p = id ? proyectos.find(x => x.id === id) : (base || {});
+  proyBase = id ? null : (base || null);
   abrirSheet(id ? 'Editar proyecto' : 'Nuevo proyecto de mejora', `
     ${campo('p-nombre', 'Nombre del proyecto', { val: p.nombre, ph: 'Ej. Reducir despachos que salen tarde' })}
     <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mt-1 mb-2">Acta del proyecto</div>
@@ -492,9 +609,12 @@ async function guardarProyecto(id) {
     fecha_inicio: nul('p-ini'), fecha_meta: nul('p-meta'),
     indicador: nul('p-ind'), valor_base: num('p-base'), valor_actual: num('p-actual'), valor_meta: num('p-vmeta')
   };
+  if (!id && proyBase?.cicloDe) fila.ciclo_de = proyBase.cicloDe;
   const r = await db(id ? cliente.from('proyectos').update(fila).eq('id', id).select().single() : cliente.from('proyectos').insert(fila).select().single());
   if (!r) return;
   if (!await sincronizar('proyecto_miembros', 'proyecto_id', r.id, (proyectos.find(x => x.id === id)?.miembros || []).map(m => m.usuario_id), marcados)) return;
+  if (!id && proyBase?.ideaId) await db(cliente.from('ideas').update({ estado: 'proyecto', proyecto_id: r.id, atendida_por: yo.id, atendida_en: new Date().toISOString() }).eq('id', proyBase.ideaId));
+  proyBase = null; mjVista = 'proyectos';
   cerrarSheet(); toast('Proyecto guardado');
   if (!id) proyId = r.id;
   await refrescarMejora();
