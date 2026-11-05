@@ -164,9 +164,10 @@
       <div id="form-tarea" class="hidden card p-4 mb-4">
         <input id="t-titulo" placeholder="¿Qué hay que hacer?" class="inp mb-2">
         <textarea id="t-desc" rows="2" placeholder="Detalle adicional (opcional)" class="inp mb-2"></textarea>
-        <div class="flex gap-2 mb-3">
-          <select id="t-prio" class="inp flex-1"><option value="baja">Prioridad baja</option><option value="media" selected>Prioridad media</option><option value="alta">Prioridad alta</option></select>
-          <input id="t-fecha" type="date" class="inp flex-1">
+        <select id="t-prio" class="inp mb-2"><option value="baja">Prioridad baja</option><option value="media" selected>Prioridad media</option><option value="alta">Prioridad alta</option></select>
+        <div class="grid grid-cols-2 gap-2 mb-3">
+          <label class="block"><span class="lbl">Fecha límite</span><input id="t-fecha" type="date" class="inp"></label>
+          <label class="block"><span class="lbl">Hora límite (opcional)</span><input id="t-hora" type="time" class="inp"></label>
         </div>
         <div id="bloque-asignar">
           <div class="text-sm font-semibold mb-2 text-slate-700">Asignar a:</div>

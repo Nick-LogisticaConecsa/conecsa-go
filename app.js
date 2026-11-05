@@ -17,6 +17,10 @@ const fmtNum = n => n == null ? '—' : Number(n).toLocaleString('es-PE');
 const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 const nombreDe = id => usuarios.find(u => u.id === id)?.nombre || '—';
 const ahoraLocal = () => new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 16);
+// Límite de una tarea: fecha y, si la tiene, hora. Sin hora vence al terminar el día.
+const venceTs = (f, h) => f ? new Date(`${f}T${h ? h.slice(0, 5) : '23:59'}:00`) : null;
+const estaVencido = (f, h, hecho) => !hecho && !!f && venceTs(f, h) < new Date();
+const fmtLimite = (f, h) => formFecha(f) + (h ? ' ' + h.slice(0, 5) : '');
 const tsLocal = ts => ts ? new Date(new Date(ts).getTime() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 16) : '';
 
 
@@ -327,7 +331,7 @@ async function borrarAviso(id) {
 
 // --- TAREAS ---
 async function cargarTareas() {
-  const { data } = await cliente.from('tareas').select('*, creador:perfiles!creado_por(nombre), tarea_asignados(usuario_id, estado, perfil:perfiles(nombre)), tarea_comentarios(id, tipo, texto, created_at, autor:perfiles!autor_id(nombre))').order('created_at', { ascending: false });
+  const { data } = await cliente.from('tareas').select('*, creador:perfiles!creado_por(nombre), tarea_asignados(usuario_id, estado, perfil:perfiles(nombre)), tarea_comentarios(id, tipo, texto, created_at, autor:perfiles!autor_id(nombre)), subtareas(id, titulo, fecha_limite, hora_limite, asignado_a, estado, created_by, created_at, asignado:perfiles!asignado_a(nombre))').order('created_at', { ascending: false });
   tareas = data || [];
   const pend = tareas.filter(t => t.tarea_asignados.some(a => a.usuario_id === yo.id && a.estado !== 'hecha')).length;
   $('badge').textContent = pend; $('badge').classList.toggle('hidden', !pend);
@@ -338,20 +342,19 @@ function subTareas(s) {
   pintarTareas();
 }
 function pintarTareas() {
-  const hoy = isoHoy();
   const l = sub === 'mias'
     ? tareas.filter(t => t.tarea_asignados.some(a => a.usuario_id === yo.id))
     : tareas.filter(t => t.creado_por === yo.id && t.tarea_asignados.some(a => a.usuario_id !== yo.id));
   if (!l.length) { $('lista-tareas').innerHTML = '<p class="vacio">No hay tareas aquí.</p>'; return; }
   $('lista-tareas').innerHTML = l.map(t => {
     const mia = t.tarea_asignados.find(a => a.usuario_id === yo.id);
-    const vencida = t.fecha_limite && t.fecha_limite < hoy && !t.tarea_asignados.every(a => a.estado === 'hecha');
+    const vencida = estaVencido(t.fecha_limite, t.hora_limite, t.tarea_asignados.every(a => a.estado === 'hecha'));
     return `<div class="card p-4 mb-3">
       <div class="font-bold text-slate-800">${esc(t.titulo)}</div>
       ${t.descripcion ? `<p class="text-sm text-slate-600 mt-1 leading-snug">${esc(t.descripcion)}</p>` : ''}
       <div class="meta mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 ${vencida ? '!text-red-600' : ''}">
         <span class="chip ${PRIO[t.prioridad] || 'b-gris'}">${esc((t.prioridad || '').toUpperCase())}</span>
-        ${t.fecha_limite ? `<span>${ico(vencida ? 'warn' : 'cal')} ${vencida ? 'Vencida: ' : 'Para el '}${formFecha(t.fecha_limite)}</span>` : ''}
+        ${t.fecha_limite ? `<span>${ico(vencida ? 'warn' : 'cal')} ${vencida ? 'Vencida: ' : 'Para el '}${fmtLimite(t.fecha_limite, t.hora_limite)}</span>` : ''}
         <span>${ico('user')} De ${esc(t.creador?.nombre || '—')}</span>
       </div>
       ${sub === 'mias' && mia ? `
@@ -360,9 +363,65 @@ function pintarTareas() {
         </select>` : `
         <div class="flex flex-wrap gap-1.5 mt-3">${t.tarea_asignados.map(a => `<span class="text-[10px] font-bold px-2 py-1 rounded-full est-${a.estado}">${esc(a.perfil?.nombre || '—')}: ${a.estado.replace('_', ' ').toUpperCase()}</span>`).join('')}</div>
         <button onclick="borrarTarea(${t.id})" class="text-xs font-bold text-red-600 mt-3 hover:underline">Eliminar tarea</button>`}
+      ${htmlSubtareas(t)}
       <button onclick="abrirHiloTarea(${t.id})" class="btn btn-sec btn-sm mt-3">${ico('chat', 'w-4 h-4')} Comentarios${(t.tarea_comentarios || []).length ? ` (${t.tarea_comentarios.length})` : ''}</button>
     </div>`;
   }).join('');
+}
+
+// --- SUBTAREAS (cada una con su fecha, hora y responsable) ---
+function htmlSubtareas(t) {
+  const ss = [...(t.subtareas || [])].sort((a, b) => (a.estado === 'hecha') - (b.estado === 'hecha')
+    || (venceTs(a.fecha_limite, a.hora_limite) || Infinity) - (venceTs(b.fecha_limite, b.hora_limite) || Infinity) || a.id - b.id);
+  const hechas = ss.filter(s => s.estado === 'hecha').length, creador = t.creado_por === yo.id;
+  return `<div class="mt-3 pt-3 border-t border-slate-100">
+    <div class="flex items-center justify-between"><span class="seccion">Subtareas${ss.length ? ` · ${hechas} de ${ss.length}` : ''}</span>
+      <button onclick="formSubtarea(${t.id})" class="text-xs font-bold text-amber-700 hover:underline">+ Subtarea</button></div>
+    ${ss.length ? `<div class="h-1.5 rounded-full bg-slate-100 overflow-hidden mt-2"><div class="h-full bg-emerald-500" style="width:${Math.round(hechas * 100 / ss.length)}%"></div></div>` : ''}
+    ${ss.map(s => {
+      const ok = s.estado === 'hecha', venc = estaVencido(s.fecha_limite, s.hora_limite, ok);
+      const puedeMover = !s.asignado_a || s.asignado_a === yo.id || creador, puedeEditar = creador || s.created_by === yo.id;
+      return `<div class="flex items-start gap-2.5 py-2 border-b border-slate-50 last:border-0">
+        <input type="checkbox" class="mt-0.5 w-4 h-4 accent-[#0B1320] flex-none" ${ok ? 'checked' : ''} ${puedeMover ? '' : 'disabled'} onchange="cambiarEstadoSub(${s.id}, this.checked)" aria-label="Marcar subtarea como hecha">
+        <div class="flex-1 min-w-0"><div class="text-sm ${ok ? 'line-through text-slate-400' : 'text-slate-700'}">${esc(s.titulo)}</div>
+          <div class="text-[11px] flex flex-wrap gap-x-3 ${venc ? 'text-red-600 font-semibold' : 'text-slate-500'}">
+            ${s.fecha_limite ? `<span>${ico(venc ? 'warn' : 'cal', 'w-3 h-3')} ${venc ? 'Vencida: ' : ''}${fmtLimite(s.fecha_limite, s.hora_limite)}</span>` : ''}
+            ${s.asignado?.nombre ? `<span>${ico('user', 'w-3 h-3')} ${esc(s.asignado.nombre)}</span>` : ''}</div></div>
+        ${puedeEditar ? `<button onclick="formSubtarea(${t.id},${s.id})" class="text-slate-400 hover:text-slate-700 flex-none" aria-label="Editar subtarea">${ico('pencil', 'w-4 h-4')}</button>` : ''}</div>`;
+    }).join('')}</div>`;
+}
+function formSubtarea(tid, id) {
+  const t = tareas.find(x => x.id === tid), s = id ? t.subtareas.find(x => x.id === id) : {};
+  const ids = new Set([t.creado_por, ...t.tarea_asignados.map(a => a.usuario_id)]);
+  const personas = usuarios.filter(u => ids.has(u.id));
+  abrirSheet(id ? 'Editar subtarea' : 'Nueva subtarea', `
+    <p class="text-sm font-semibold text-slate-700 mb-3">${esc(t.titulo)}${t.fecha_limite ? ` <span class="font-normal text-slate-500">· vence ${fmtLimite(t.fecha_limite, t.hora_limite)}</span>` : ''}</p>
+    ${campo('su-titulo', '¿Qué hay que hacer?', { val: s.titulo })}
+    ${lista('su-asig', 'Responsable', [['', '— Sin asignar —'], ...personas.map(u => [u.id, u.id === yo.id ? 'Yo' : u.nombre])], s.asignado_a || '')}
+    ${fila(campo('su-fecha', 'Fecha límite', { type: 'date', val: s.fecha_limite }), campo('su-hora', 'Hora límite (opcional)', { type: 'time', val: (s.hora_limite || '').slice(0, 5) }))}
+    <button onclick="lock(this,()=>guardarSubtarea(${tid},${id || 0}))" class="btn btn-pri w-full !py-3">Guardar</button>
+    ${id ? `<button onclick="borrarSubtarea(${id})" class="btn btn-del w-full mt-2">Eliminar subtarea</button>` : ''}`);
+}
+async function guardarSubtarea(tid, id) {
+  if (!val('su-titulo')) return toast('Escribe qué hay que hacer.', true);
+  if (nul('su-hora') && !nul('su-fecha')) return toast('Para poner una hora, elige también la fecha.', true);
+  const f = { titulo: val('su-titulo'), asignado_a: nul('su-asig'), fecha_limite: nul('su-fecha'), hora_limite: nul('su-hora') };
+  const t = tareas.find(x => x.id === tid);
+  if (t.fecha_limite && f.fecha_limite && venceTs(f.fecha_limite, f.hora_limite) > venceTs(t.fecha_limite, t.hora_limite)
+      && !confirm('Esta subtarea vence después de la tarea principal. ¿Guardar de todos modos?')) return;
+  if (!await db(id ? cliente.from('subtareas').update(f).eq('id', id) : cliente.from('subtareas').insert({ ...f, tarea_id: tid }))) return;
+  cerrarSheet(); toast('Subtarea guardada'); await cargarTareas(); pintarTareas();
+}
+async function cambiarEstadoSub(id, hecha) {
+  await db(cliente.rpc('cambiar_estado_subtarea', { p_id: id, p_estado: hecha ? 'hecha' : 'pendiente' }));
+  await cargarTareas(); pintarTareas();
+  const t = tareas.find(x => (x.subtareas || []).some(s => s.id === id));
+  if (hecha && t && t.subtareas.every(s => s.estado === 'hecha')) toast('Subtareas listas: marca la tarea como hecha');
+}
+async function borrarSubtarea(id) {
+  if (!confirm('¿Eliminar esta subtarea?')) return;
+  if (!await db(cliente.from('subtareas').delete().eq('id', id))) return;
+  cerrarSheet(); await cargarTareas(); pintarTareas();
 }
 function abrirHiloTarea(id) {
   const t = tareas.find(x => x.id === id); if (!t) return;
@@ -401,7 +460,9 @@ function marcarRol(rol) { document.querySelectorAll('.chk-u').forEach(c => { if 
 async function crearTarea() {
   const titulo = $('t-titulo').value.trim();
   if (!titulo) return toast('Escribe un título para la tarea.', true);
-  const t = await db(cliente.from('tareas').insert({ titulo, descripcion: $('t-desc').value.trim() || null, prioridad: $('t-prio').value, fecha_limite: $('t-fecha').value || null }).select().single());
+  const fecha = $('t-fecha').value || null, hora = $('t-hora').value || null;
+  if (hora && !fecha) return toast('Para poner una hora, elige también la fecha.', true);
+  const t = await db(cliente.from('tareas').insert({ titulo, descripcion: $('t-desc').value.trim() || null, prioridad: $('t-prio').value, fecha_limite: fecha, hora_limite: hora }).select().single());
   if (!t) return;
   const ids = PUEDE_ASIGNAR.includes(yo.rol) ? [...document.querySelectorAll('.chk-u:checked')].map(c => c.value) : [];
   const destino = (ids.length ? ids : [yo.id]).map(u => ({ tarea_id: t.id, usuario_id: u }));
@@ -409,7 +470,7 @@ async function crearTarea() {
     await cliente.from('tareas').delete().eq('id', t.id);        // no dejar tareas huérfanas sin responsable
     return;
   }
-  ['t-titulo', 't-desc', 't-fecha'].forEach(i => $(i).value = ''); $('form-tarea').classList.add('hidden');
+  ['t-titulo', 't-desc', 't-fecha', 't-hora'].forEach(i => $(i).value = ''); $('form-tarea').classList.add('hidden');
   toast('Tarea creada');
   await cargarTareas(); subTareas(ids.length ? 'dadas' : 'mias');
 }
