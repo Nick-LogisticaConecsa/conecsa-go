@@ -9,6 +9,10 @@ const cliente = supabase.createClient(
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeUrl = u => /^https?:\/\//i.test(u) ? u : '#';
+// Cuenta de Google del trabajo: las plantillas de Drive se abren (y se copian) con esta cuenta
+// aunque en el navegador esté abierta otra, como la personal. Para cambiarla, editar solo esta línea.
+const CUENTA_GOOGLE = 'pract.logistica.conecsa@gmail.com';
+const urlGoogle = u => /^https:\/\/(docs|drive)\.google\.com\//i.test(u) ? u + (u.includes('?') ? '&' : '?') + 'authuser=' + encodeURIComponent(CUENTA_GOOGLE) : u;
 const formFecha = f => f ? f.split('-').reverse().join('/') : '';
 const isoHoy = () => new Date().toLocaleDateString('en-CA');           // YYYY-MM-DD en hora local
 const diasHasta = f => Math.round((new Date(f + 'T00:00:00') - new Date(isoHoy() + 'T00:00:00')) / 864e5);
@@ -238,7 +242,7 @@ function pintarRecursos() {
       <h3 class="font-bold text-slate-500 text-xs uppercase tracking-wider mb-3 ml-1">${esc(cat)}</h3>
       ${l.map(r => `
         <div class="card mb-3 hover:shadow-md transition">
-          <a href="${esc(safeUrl(r.url))}" target="_blank" rel="noopener" class="block p-4">
+          <a href="${esc(bib === 'herramienta' ? urlGoogle(safeUrl(r.url)) : safeUrl(r.url))}" target="_blank" rel="noopener" class="block p-4">
             <div class="flex justify-between items-start gap-2">
               <span class="font-bold text-slate-800 text-[15px]">${esc(r.titulo)}</span>
               ${r.version ? `<span class="text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full whitespace-nowrap">v${esc(r.version)}</span>` : ''}

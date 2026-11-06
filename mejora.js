@@ -266,7 +266,7 @@ function htmlGuiaFase(p) {
       <div class="seccion mt-3 mb-1">Resultado esperado</div><p>${gu.resultado}</p>
       <div class="seccion mt-3 mb-1.5">Herramientas que ayudan</div>
       <div class="flex flex-wrap gap-1.5">${gu.herramientas.map(h => `<span class="chip bg-slate-100 text-slate-600">${h}</span>`).join('')}</div>
-      ${links.length ? `<div class="mt-3 grid gap-2">${links.map(r => `<a href="${esc(safeUrl(r.url))}" target="_blank" rel="noopener" class="block rounded-lg border border-slate-200 bg-slate-50 p-3 hover:bg-white">
+      ${links.length ? `<div class="mt-3 grid gap-2">${links.map(r => `<a href="${esc(urlGoogle(safeUrl(r.url)))}" target="_blank" rel="noopener" class="block rounded-lg border border-slate-200 bg-slate-50 p-3 hover:bg-white">
           <span class="font-semibold text-slate-800">${esc(r.titulo)}</span>${r.descripcion ? `<span class="block text-xs text-slate-500 mt-0.5">${esc(r.descripcion)}</span>` : ''}
           <span class="block text-xs font-bold text-amber-700 mt-1">Abrir herramienta</span></a>`).join('')}</div>`
         : `<p class="text-xs text-slate-500 mt-3">Aún no hay enlaces de herramientas para esta fase${yo.rol === 'admin' ? '. Añádelos en Biblioteca → Herramientas.' : '.'}</p>`}
